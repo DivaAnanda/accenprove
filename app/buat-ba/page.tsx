@@ -239,38 +239,6 @@ export default function BuatBeritaAcara() {
               />
             </div>
 
-            {/* Nama PIC Gudang */}
-            <div>
-              <label className="block text-base font-semibold text-gray-900 mb-2">
-                Nama PIC Gudang <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="namaPIC"
-                value={formData.namaPIC}
-                onChange={handleInputChange}
-                required
-                placeholder="Contoh: I Ketut Tangkas Agus Sucita"
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 placeholder-gray-400"
-              />
-            </div>
-
-            {/* Jabatan PIC */}
-            <div>
-              <label className="block text-base font-semibold text-gray-900 mb-2">
-                Jabatan PIC <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="jabatanPIC"
-                value={formData.jabatanPIC}
-                onChange={handleInputChange}
-                required
-                placeholder="Contoh: Supervisor Gudang"
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 placeholder-gray-400"
-              />
-            </div>
-
             {/* Deskripsi Barang/Pekerjaan */}
             <div>
               <label className="block text-base font-semibold text-gray-900 mb-2">

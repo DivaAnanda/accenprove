@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import Footer from "@/components/Footer";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,8 +16,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
           <Link href="/" className="inline-block">
@@ -120,7 +122,10 @@ export default function LoginPage() {
             Kembali ke beranda
           </Link>
         </div>
+        </div>
       </div>
+      
+      <Footer />
     </div>
   );
 }

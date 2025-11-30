@@ -1,34 +1,11 @@
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white">
-      {/* Navbar */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-primary-600">
-                Accenprove
-              </Link>
-            </div>
-            <div className="flex items-center gap-4">
-              <Link
-                href="/login"
-                className="px-4 py-2 text-gray-700 hover:text-primary-600 transition-colors font-medium"
-              >
-                Masuk
-              </Link>
-              <Link
-                href="/register"
-                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-              >
-                Daftar
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Hero Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
@@ -189,20 +166,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center">
-            <h3 className="text-2xl font-bold mb-2">Accenprove</h3>
-            <p className="text-gray-400 mb-6">
-              Digitalisasi Berita Acara untuk Efisiensi Bisnis
-            </p>
-            <p className="text-gray-500 text-sm">
-              © 2025 Accenprove. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
