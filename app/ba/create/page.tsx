@@ -2,12 +2,28 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
-export default function BuatBeritaAcara() {
+export default function CreateBAPage() {
   const router = useRouter();
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // Mock user - In production, get from auth context
+  const user = {
+    role: "vendor" as const,
+    name: "Vendor User",
+  };
+
+  // Role check - redirect if not vendor
+  useEffect(() => {
+    if (user.role !== "vendor") {
+      router.push("/dashboard");
+    }
+  }, [user.role, router]);
+
   const [formData, setFormData] = useState({
     jenisBA: "",
     nomorKontrak: "",
@@ -113,11 +129,32 @@ export default function BuatBeritaAcara() {
     const canvas = canvasRef.current;
     if (canvas) {
       const signatureData = canvas.toDataURL();
-      console.log("Data BA:", formData);
-      console.log("Tanda Tangan:", signatureData);
+      
+      // Generate BA number
+      const now = new Date();
+      const nomorBA = `BA/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+      
+      // Prepare BA data
+      const baData = {
+        id: Date.now().toString(),
+        nomorBA,
+        ...formData,
+        signatureVendor: signatureData,
+        signatureDireksi: null,
+        status: "PENDING",
+        createdAt: now.toISOString(),
+        vendorName: user.name,
+      };
+
+      // Save to localStorage
+      const existingBA = JSON.parse(localStorage.getItem("beritaAcara") || "[]");
+      localStorage.setItem("beritaAcara", JSON.stringify([...existingBA, baData]));
+      
+      console.log("BA Created:", baData);
     }
+    
     setShowConfirmation(false);
-    router.push("/ba-berhasil");
+    router.push("/ba/success");
   };
 
   const handleCancel = () => {
@@ -125,25 +162,12 @@ export default function BuatBeritaAcara() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-teal-700">Accenprove</h1>
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="text-sm text-gray-600 hover:text-gray-900 font-medium"
-            >
-              ← Kembali ke Dashboard
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
+      <Navbar userRole={user.role} userName={user.name} />
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-md p-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">
               Formulir Pembuatan Berita Acara
@@ -164,7 +188,7 @@ export default function BuatBeritaAcara() {
                 value={formData.jenisBA}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white text-gray-900"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
               >
                 <option value="">Pilih Jenis BA</option>
                 <option value="BAPB">
@@ -188,7 +212,7 @@ export default function BuatBeritaAcara() {
                 onChange={handleInputChange}
                 required
                 placeholder="Contoh: K-2024/11/001"
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
               />
             </div>
 
@@ -204,7 +228,7 @@ export default function BuatBeritaAcara() {
                 onChange={handleInputChange}
                 required
                 placeholder="Contoh: PT. Vendor Teknologi Indonesia"
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
               />
             </div>
 
@@ -219,7 +243,7 @@ export default function BuatBeritaAcara() {
                 value={formData.tanggalPemeriksaan}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900"
               />
             </div>
 
@@ -235,7 +259,39 @@ export default function BuatBeritaAcara() {
                 onChange={handleInputChange}
                 required
                 placeholder="Contoh: Gudang Pusat Jakarta"
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
+              />
+            </div>
+
+            {/* Nama PIC */}
+            <div>
+              <label className="block text-base font-semibold text-gray-900 mb-2">
+                Nama PIC <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="namaPIC"
+                value={formData.namaPIC}
+                onChange={handleInputChange}
+                required
+                placeholder="Contoh: Budi Santoso"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
+              />
+            </div>
+
+            {/* Jabatan PIC */}
+            <div>
+              <label className="block text-base font-semibold text-gray-900 mb-2">
+                Jabatan PIC <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="jabatanPIC"
+                value={formData.jabatanPIC}
+                onChange={handleInputChange}
+                required
+                placeholder="Contoh: Manager Procurement"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
               />
             </div>
 
@@ -252,7 +308,7 @@ export default function BuatBeritaAcara() {
                 required
                 rows={4}
                 placeholder="Contoh: Komputer Desktop Dell OptiPlex 7010, Spesifikasi: Intel Core i7, RAM 16GB, SSD 512GB"
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
               />
             </div>
 
@@ -269,7 +325,7 @@ export default function BuatBeritaAcara() {
                 required
                 min="1"
                 placeholder="Contoh: 25"
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
               />
             </div>
 
@@ -283,7 +339,7 @@ export default function BuatBeritaAcara() {
                 value={formData.kondisiBarang}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white text-gray-900"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
               >
                 <option value="">Pilih Kondisi</option>
                 <option value="Baik">Baik - Sesuai Spesifikasi</option>
@@ -307,7 +363,7 @@ export default function BuatBeritaAcara() {
                 onChange={handleInputChange}
                 rows={3}
                 placeholder="Masukkan catatan atau keterangan tambahan jika ada (opsional)"
-                className="w-full px-4 py-3 text-base border-2 border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border-2 border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder-gray-400"
               />
             </div>
 
@@ -321,7 +377,7 @@ export default function BuatBeritaAcara() {
                 di area di bawah ini
               </p>
 
-              <div className="border-3 border-teal-600 rounded-lg p-4 bg-gray-50">
+              <div className="border-2 border-primary-300 rounded-lg p-4 bg-gray-50">
                 <canvas
                   ref={canvasRef}
                   width={600}
@@ -352,7 +408,7 @@ export default function BuatBeritaAcara() {
             <div className="flex gap-4 pt-6">
               <button
                 type="submit"
-                className="flex-1 bg-teal-700 text-white py-4 rounded-lg text-lg font-bold hover:bg-teal-800 transition-colors shadow-md"
+                className="flex-1 bg-primary-600 text-white py-4 rounded-lg text-lg font-bold hover:bg-primary-700 transition-colors shadow-md"
               >
                 Buat Berita Acara
               </button>
@@ -368,15 +424,17 @@ export default function BuatBeritaAcara() {
         </div>
       </main>
 
+      <Footer />
+
       {/* Popup Konfirmasi */}
       {showConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex flex-col items-center text-center">
               {/* Icon */}
-              <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
                 <svg
-                  className="w-10 h-10 text-teal-700"
+                  className="w-10 h-10 text-primary-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -412,7 +470,7 @@ export default function BuatBeritaAcara() {
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="flex-1 bg-teal-700 text-white py-3 rounded-lg text-base font-bold hover:bg-teal-800 transition-colors"
+                  className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-base font-bold hover:bg-primary-700 transition-colors"
                 >
                   Ya, Buat BA
                 </button>

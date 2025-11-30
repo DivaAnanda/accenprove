@@ -8,7 +8,7 @@ import Link from "next/link";
 
 // Mock user data - In production, this will come from authentication
 const mockUser = {
-  role: "dk" as "admin" | "direksi" | "dk" | "vendor",
+  role: "vendor" as "admin" | "direksi" | "dk" | "vendor",
   name: "Admin User",
 };
 
