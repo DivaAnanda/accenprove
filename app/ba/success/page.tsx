@@ -2,27 +2,67 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getBAById } from "@/lib/ba-api";
+import type { BAData } from "@/lib/ba-api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export default function BASuccessPage() {
   const router = useRouter();
-  const [baData, setBAData] = useState<any>(null);
+  const [baData, setBAData] = useState<BAData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // Get latest BA from localStorage
-    const allBA = JSON.parse(localStorage.getItem("beritaAcara") || "[]");
-    if (allBA.length > 0) {
-      const latest = allBA[allBA.length - 1];
-      setBAData(latest);
+    // Get BA ID from sessionStorage
+    const baId = sessionStorage.getItem("lastCreatedBAId");
+    
+    if (!baId) {
+      // No BA ID found, redirect to dashboard
+      router.push("/dashboard");
+      return;
     }
-  }, []);
 
-  if (!baData) {
+    // Fetch BA from API
+    async function fetchBA() {
+      try {
+        const ba = await getBAById(parseInt(baId!));
+        setBAData(ba);
+        // Clear from sessionStorage
+        sessionStorage.removeItem("lastCreatedBAId");
+      } catch (err: any) {
+        console.error("Error fetching BA:", err);
+        setError(err.message || "Failed to load BA data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBA();
+  }, [router]);
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !baData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-red-600 mb-4">{error || "BA data not found"}</p>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            Kembali ke Dashboard
+          </button>
         </div>
       </div>
     );
@@ -30,7 +70,7 @@ export default function BASuccessPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
-      <Navbar userRole="vendor" userName="Vendor User" />
+      <Navbar />
 
       {/* Main Content */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">

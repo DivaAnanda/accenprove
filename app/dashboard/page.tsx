@@ -1,50 +1,50 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import StatsCard from "@/components/dashboard/StatsCard";
 import AlertCard from "@/components/dashboard/AlertCard";
 import Link from "next/link";
-
-// Mock user data - In production, this will come from authentication
-const mockUser = {
-  role: "vendor" as "admin" | "direksi" | "dk" | "vendor",
-  name: "Admin User",
-};
-
-// Mock data for stats
-const mockStats = {
-  admin: {
-    totalBA: 128,
-    totalVendor: 45,
-    pendingApproval: 12,
-    completedToday: 5,
-  },
-  direksi: {
-    pendingApproval: 12,
-    signedToday: 8,
-    oldestBA: {
-      id: "BA-2024-001",
-      vendor: "PT. Vendor Contoh",
-      daysWaiting: 7,
-      createdAt: "2024-11-23",
-    },
-  },
-  dk: {
-    completedToday: 5,
-    readyDownload: 18,
-    thisWeek: 23,
-  },
-  vendor: {
-    pending: 3,
-    rejected: 1,
-    approved: 12,
-    total: 16,
-  },
-};
+import { useEffect, useState } from "react";
+import { 
+  getDashboardStats, 
+  AdminStats, 
+  DireksiStats, 
+  DKStats, 
+  VendorStats,
+  DireksiRecentBA,
+  DKRecentBA
+} from "@/lib/stats-api";
 
 function AdminDashboard() {
-  const stats = mockStats.admin;
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getDashboardStats()
+      .then((response) => {
+        setStats(response.stats as AdminStats);
+      })
+      .catch((err) => {
+        console.error("Error fetching stats:", err);
+        setError(err.message);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, []);
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700">Gagal memuat statistik: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -55,55 +55,65 @@ function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard
-          title="Total Berita Acara"
-          value={stats.totalBA}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          }
-          linkText="Lihat semua BA"
-          linkHref="/ba"
-        />
+        {isLoading ? (
+          <>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="animate-pulse bg-gray-200 h-32 rounded-xl"></div>
+            ))}
+          </>
+        ) : stats ? (
+          <>
+            <StatsCard
+              title="Total Berita Acara"
+              value={stats.totalBA}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              }
+              linkText="Lihat semua BA"
+              linkHref="/ba"
+            />
 
-        <StatsCard
-          title="Total Vendor"
-          value={stats.totalVendor}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          }
-          linkText="Kelola vendor"
-          linkHref="/users"
-        />
+            <StatsCard
+              title="Total Vendor"
+              value={stats.totalVendor}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              }
+              linkText="Kelola vendor"
+              linkHref="/users"
+            />
 
-        <StatsCard
-          title="Menunggu Approval"
-          value={stats.pendingApproval}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-          iconBgColor="bg-orange-100"
-          iconColor="text-orange-600"
-          linkText="Lihat detail"
-          linkHref="/ba?status=pending"
-        />
+            <StatsCard
+              title="Menunggu Approval"
+              value={stats.pendingApproval}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              iconBgColor="bg-orange-100"
+              iconColor="text-orange-600"
+              linkText="Lihat detail"
+              linkHref="/ba?status=pending"
+            />
 
-        <StatsCard
-          title="Selesai Hari Ini"
-          value={stats.completedToday}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-          iconBgColor="bg-green-100"
-          iconColor="text-green-600"
-        />
+            <StatsCard
+              title="Selesai Hari Ini"
+              value={stats.completedToday}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              iconBgColor="bg-green-100"
+              iconColor="text-green-600"
+            />
+          </>
+        ) : null}
       </div>
 
       {/* Quick Actions */}
@@ -161,7 +171,35 @@ function AdminDashboard() {
 }
 
 function DireksiDashboard() {
-  const stats = mockStats.direksi;
+  const [stats, setStats] = useState<DireksiStats | null>(null);
+  const [recentBA, setRecentBA] = useState<DireksiRecentBA[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getDashboardStats()
+      .then((response) => {
+        setStats(response.stats as DireksiStats);
+        setRecentBA(response.recentBA as DireksiRecentBA[]);
+      })
+      .catch((err) => {
+        console.error("Error fetching stats:", err);
+        setError(err.message);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, []);
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700">Gagal memuat statistik: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -172,88 +210,138 @@ function DireksiDashboard() {
 
       {/* Stats Grid */}
       <div className="grid md:grid-cols-3 gap-6">
-        <StatsCard
-          title="Menunggu Approval"
-          value={stats.pendingApproval}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-          iconBgColor="bg-orange-100"
-          iconColor="text-orange-600"
-          linkText="Review sekarang"
-          linkHref="/ba?status=pending"
-        />
+        {isLoading ? (
+          <>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse bg-gray-200 h-32 rounded-xl"></div>
+            ))}
+          </>
+        ) : stats ? (
+          <>
+            <StatsCard
+              title="Menunggu Approval"
+              value={stats.pendingApproval}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              iconBgColor="bg-orange-100"
+              iconColor="text-orange-600"
+              linkText="Review sekarang"
+              linkHref="/ba?status=pending"
+            />
 
-        <StatsCard
-          title="Ditandatangani Hari Ini"
-          value={stats.signedToday}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-          iconBgColor="bg-green-100"
-          iconColor="text-green-600"
-        />
+            <StatsCard
+              title="Ditandatangani Hari Ini"
+              value={stats.signedToday}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              iconBgColor="bg-green-100"
+              iconColor="text-green-600"
+            />
 
-        <StatsCard
-          title="BA Terlama Menunggu"
-          value={`${stats.oldestBA.daysWaiting} hari`}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          }
-          iconBgColor="bg-red-100"
-          iconColor="text-red-600"
-          linkText="Lihat BA"
-          linkHref={`/ba/${stats.oldestBA.id}`}
-        />
+            <StatsCard
+              title="BA Terlama Menunggu"
+              value={stats.oldestBA ? `${stats.oldestBA.daysWaiting} hari` : "Tidak ada"}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              }
+              iconBgColor="bg-red-100"
+              iconColor="text-red-600"
+              linkText={stats.oldestBA ? "Lihat BA" : undefined}
+              linkHref={stats.oldestBA ? `/ba/${stats.oldestBA.id}` : undefined}
+            />
+          </>
+        ) : null}
       </div>
 
       {/* Alert for Oldest BA */}
-      <AlertCard
-        title="BA Memerlukan Perhatian"
-        description={`BA ${stats.oldestBA.id} dari ${stats.oldestBA.vendor} sudah menunggu ${stats.oldestBA.daysWaiting} hari tanpa respon. Dibuat pada ${new Date(stats.oldestBA.createdAt).toLocaleDateString("id-ID")}.`}
-        actionText="Review Sekarang"
-        actionHref={`/ba/${stats.oldestBA.id}`}
-        variant="warning"
-      />
+      {!isLoading && stats?.oldestBA && (
+        <AlertCard
+          title="BA Memerlukan Perhatian"
+          description={`BA ${stats.oldestBA.nomorBA} dari ${stats.oldestBA.namaVendor} sudah menunggu ${stats.oldestBA.daysWaiting} hari tanpa respon. Dibuat pada ${new Date(stats.oldestBA.createdAt).toLocaleDateString("id-ID")}.`}
+          actionText="Review Sekarang"
+          actionHref={`/ba/${stats.oldestBA.id}`}
+          variant="warning"
+        />
+      )}
 
       {/* Recent Activity */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">BA Terbaru Menunggu</h2>
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Link
-              key={i}
-              href={`/ba/BA-2024-00${i}`}
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-600 hover:bg-primary-50 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>
+            ))}
+          </div>
+        ) : recentBA.length > 0 ? (
+          <div className="space-y-3">
+            {recentBA.map((ba) => (
+              <Link
+                key={ba.id}
+                href={`/ba/${ba.id}`}
+                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-600 hover:bg-primary-50 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{ba.nomorBA}</p>
+                    <p className="text-sm text-gray-600">{ba.namaVendor} - {ba.jenisBA}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-gray-900">BA-2024-00{i}</p>
-                  <p className="text-sm text-gray-600">PT. Vendor Example - BAPB</p>
-                </div>
-              </div>
-              <span className="text-sm text-gray-500">{i} hari yang lalu</span>
-            </Link>
-          ))}
-        </div>
+                <span className="text-sm text-gray-500">{ba.daysWaiting} hari yang lalu</span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500 text-center py-8">Tidak ada BA menunggu approval</p>
+        )}
       </div>
     </div>
   );
 }
 
 function DKDashboard() {
-  const stats = mockStats.dk;
+  const [stats, setStats] = useState<DKStats | null>(null);
+  const [recentBA, setRecentBA] = useState<DKRecentBA[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getDashboardStats()
+      .then((response) => {
+        setStats(response.stats as DKStats);
+        setRecentBA(response.recentBA as DKRecentBA[]);
+      })
+      .catch((err) => {
+        console.error("Error fetching stats:", err);
+        setError(err.message);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, []);
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700">Gagal memuat statistik: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -264,9 +352,17 @@ function DKDashboard() {
 
       {/* Stats Grid */}
       <div className="grid md:grid-cols-3 gap-6">
-        <StatsCard
-          title="BA Selesai Hari Ini"
-          value={stats.completedToday}
+        {isLoading ? (
+          <>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse bg-gray-200 h-32 rounded-xl"></div>
+            ))}
+          </>
+        ) : stats ? (
+          <>
+            <StatsCard
+              title="BA Selesai Hari Ini"
+              value={stats.completedToday}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -278,9 +374,9 @@ function DKDashboard() {
           linkHref="/ba?status=approved&date=today"
         />
 
-        <StatsCard
-          title="Siap Download"
-          value={stats.readyDownload}
+            <StatsCard
+              title="Siap Download"
+              value={stats.readyDownload}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
@@ -292,17 +388,19 @@ function DKDashboard() {
           linkHref="/ba?status=approved"
         />
 
-        <StatsCard
-          title="BA Minggu Ini"
-          value={stats.thisWeek}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          }
-          iconBgColor="bg-purple-100"
-          iconColor="text-purple-600"
-        />
+            <StatsCard
+              title="BA Minggu Ini"
+              value={stats.thisWeek}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              }
+              iconBgColor="bg-purple-100"
+              iconColor="text-purple-600"
+            />
+          </>
+        ) : null}
       </div>
 
       {/* Recent Approved BA */}
@@ -313,40 +411,77 @@ function DKDashboard() {
             Lihat semua
           </Link>
         </div>
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-600 hover:bg-primary-50 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-600">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse bg-gray-200 h-24 rounded-lg"></div>
+            ))}
+          </div>
+        ) : recentBA.length > 0 ? (
+          <div className="space-y-3">
+            {recentBA.map((ba) => (
+              <Link
+                key={ba.id}
+                href={`/ba/${ba.id}`}
+                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-600 hover:bg-primary-50 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{ba.nomorBA}</p>
+                    <p className="text-sm text-gray-600">{ba.namaVendor} - {ba.jenisBA}</p>
+                    <p className="text-xs text-gray-500">Disetujui {ba.hoursAgo} jam yang lalu</p>
+                  </div>
+                </div>
+                <div className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
+                  Download
                 </div>
-                <div>
-                  <p className="font-medium text-gray-900">BA-2024-00{i}</p>
-                  <p className="text-sm text-gray-600">PT. Vendor Example - BAPP</p>
-                  <p className="text-xs text-gray-500">Disetujui {i} jam yang lalu</p>
-                </div>
-              </div>
-              <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download
-              </button>
-            </div>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500 text-center py-8">Tidak ada BA yang baru disetujui</p>
+        )}
       </div>
     </div>
   );
 }
 
 function VendorDashboard() {
-  const stats = mockStats.vendor;
+  const [stats, setStats] = useState<VendorStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getDashboardStats()
+      .then((response) => {
+        setStats(response.stats as VendorStats);
+      })
+      .catch((err) => {
+        console.error("Error fetching stats:", err);
+        setError(err.message);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, []);
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700">Gagal memuat statistik: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -357,9 +492,17 @@ function VendorDashboard() {
 
       {/* Stats Grid */}
       <div className="grid md:grid-cols-4 gap-6">
-        <StatsCard
-          title="Total BA"
-          value={stats.total}
+        {isLoading ? (
+          <>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="animate-pulse bg-gray-200 h-32 rounded-xl"></div>
+            ))}
+          </>
+        ) : stats ? (
+          <>
+            <StatsCard
+              title="Total BA"
+              value={stats.total}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -369,9 +512,9 @@ function VendorDashboard() {
           linkHref="/ba/my"
         />
 
-        <StatsCard
-          title="Menunggu Approval"
-          value={stats.pending}
+            <StatsCard
+              title="Menunggu Approval"
+              value={stats.pending}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -381,9 +524,9 @@ function VendorDashboard() {
           iconColor="text-orange-600"
         />
 
-        <StatsCard
-          title="Ditolak"
-          value={stats.rejected}
+            <StatsCard
+              title="Ditolak"
+              value={stats.rejected}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -395,17 +538,19 @@ function VendorDashboard() {
           linkHref="/ba/my?status=rejected"
         />
 
-        <StatsCard
-          title="Disetujui"
-          value={stats.approved}
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-          iconBgColor="bg-green-100"
-          iconColor="text-green-600"
-        />
+            <StatsCard
+              title="Disetujui"
+              value={stats.approved}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              iconBgColor="bg-green-100"
+              iconColor="text-green-600"
+            />
+          </>
+        ) : null}
       </div>
 
       {/* Quick Action */}
@@ -428,7 +573,7 @@ function VendorDashboard() {
       </div>
 
       {/* Alert for Rejected BA */}
-      {stats.rejected > 0 && (
+      {!isLoading && stats && stats.rejected > 0 && (
         <AlertCard
           title="BA Ditolak"
           description={`Anda memiliki ${stats.rejected} BA yang ditolak. Silakan buat BA baru dengan perbaikan yang diperlukan.`}
@@ -480,8 +625,22 @@ function VendorDashboard() {
 }
 
 export default function DashboardPage() {
-  // In production, get user from auth context/session
-  const user = mockUser;
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // Middleware will redirect to login
+  }
 
   const renderDashboard = () => {
     switch (user.role) {
@@ -500,7 +659,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
-      <Navbar userRole={user.role} userName={user.name} />
+      <Navbar />
       
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {renderDashboard()}

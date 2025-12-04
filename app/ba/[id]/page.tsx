@@ -1,30 +1,12 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { getBAById, approveBA, rejectBA } from "@/lib/ba-api";
+import type { BAData } from "@/lib/ba-api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
-
-interface BAData {
-  id: number;
-  nomorBA: string;
-  jenisBA: "BAPB" | "BAPP";
-  nomorKontrak: string;
-  namaVendor: string;
-  tanggalPemeriksaan: string;
-  lokasiPemeriksaan: string;
-  namaPIC: string;
-  jabatanPIC: string;
-  deskripsiBarang: string;
-  jumlahBarang: string;
-  kondisiBarang: string;
-  keterangan: string;
-  signatureVendor: string;
-  signatureDireksi?: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
-  createdAt: string;
-  approvedAt?: string;
-}
 
 export default function DetailBeritaAcara() {
   const router = useRouter();
@@ -34,22 +16,160 @@ export default function DetailBeritaAcara() {
 
   const [baData, setBAData] = useState<BAData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [user] = useState({ role: "vendor", name: "User Vendor" }); // Mock user - will be replaced with auth
+  const [error, setError] = useState("");
+  const { user, loading: authLoading } = useAuth();
+
+  // Approve/Reject Modal States
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    // Fetch BA from localStorage
-    const allBA = JSON.parse(localStorage.getItem("beritaAcara") || "[]");
-    const foundBA = allBA.find((ba: BAData) => ba.id.toString() === id);
-    
-    if (foundBA) {
-      setBAData(foundBA);
-    } else {
-      // BA not found
-      alert("Berita Acara tidak ditemukan");
-      router.push("/dashboard");
+    if (authLoading) return;
+
+    async function fetchBA() {
+      try {
+        const ba = await getBAById(parseInt(id));
+        setBAData(ba);
+      } catch (err: any) {
+        console.error("Error fetching BA:", err);
+        setError(err.message || "Failed to load BA");
+        setTimeout(() => router.push("/dashboard"), 2000);
+      } finally {
+        setLoading(false);
+      }
     }
-    setLoading(false);
-  }, [id, router]);
+
+    fetchBA();
+  }, [id, authLoading, router]);
+
+  // Initialize signature canvas
+  useEffect(() => {
+    const canvas = signatureCanvasRef.current;
+    if (canvas && showApproveModal) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+      }
+    }
+  }, [showApproveModal]);
+
+  // Signature drawing handlers
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    setIsDrawing(true);
+    const canvas = signatureCanvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (ctx && canvas) {
+      const rect = canvas.getBoundingClientRect();
+      ctx.beginPath();
+      ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    }
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = signatureCanvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (ctx && canvas) {
+      const rect = canvas.getBoundingClientRect();
+      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+      ctx.stroke();
+    }
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearSignature = () => {
+    const canvas = signatureCanvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (ctx && canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  };
+
+  // Approve BA handler
+  const handleApprove = async () => {
+    setIsSubmitting(true);
+    setSubmitError("");
+
+    try {
+      const canvas = signatureCanvasRef.current;
+      if (!canvas) {
+        throw new Error("Canvas not found");
+      }
+
+      // Check if signature exists
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        let hasSignature = false;
+
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] > 0) {
+            hasSignature = true;
+            break;
+          }
+        }
+
+        if (!hasSignature) {
+          throw new Error("Silakan bubuhkan tanda tangan terlebih dahulu!");
+        }
+      }
+
+      const signatureData = canvas.toDataURL();
+
+      await approveBA(parseInt(id), signatureData);
+
+      // Refresh BA data
+      const updatedBA = await getBAById(parseInt(id));
+      setBAData(updatedBA);
+
+      setShowApproveModal(false);
+      alert("Berita Acara berhasil disetujui!");
+    } catch (error: any) {
+      console.error("Error approving BA:", error);
+      setSubmitError(error.message || "Failed to approve BA");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Reject BA handler
+  const handleReject = async () => {
+    if (!rejectionReason.trim()) {
+      setSubmitError("Alasan penolakan harus diisi!");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError("");
+
+    try {
+      await rejectBA(parseInt(id), rejectionReason);
+
+      // Refresh BA data
+      const updatedBA = await getBAById(parseInt(id));
+      setBAData(updatedBA);
+
+      setShowRejectModal(false);
+      setRejectionReason("");
+      alert("Berita Acara telah ditolak.");
+    } catch (error: any) {
+      console.error("Error rejecting BA:", error);
+      setSubmitError(error.message || "Failed to reject BA");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleDownloadPDF = () => {
     if (!baData) return;
@@ -254,7 +374,7 @@ export default function DetailBeritaAcara() {
     );
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
@@ -267,6 +387,10 @@ export default function DetailBeritaAcara() {
         <Footer />
       </div>
     );
+  }
+
+  if (!user) {
+    return null; // Middleware will handle redirect
   }
 
   if (!baData) {
@@ -363,6 +487,58 @@ export default function DetailBeritaAcara() {
             </button>
           </div>
         </div>
+
+        {/* Direksi Action Buttons - Only show for PENDING BA */}
+        {user.role === "direksi" && baData.status === "PENDING" && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6 print:hidden border-2 border-orange-300">
+            <h3 className="text-lg font-bold text-gray-900 mb-3">Aksi Direksi</h3>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowApproveModal(true)}
+                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg text-base font-bold hover:bg-green-700 transition-colors flex items-center justify-center"
+              >
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Setujui BA
+              </button>
+              <button
+                onClick={() => setShowRejectModal(true)}
+                className="flex-1 bg-red-600 text-white py-3 px-6 rounded-lg text-base font-bold hover:bg-red-700 transition-colors flex items-center justify-center"
+              >
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                Tolak BA
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Rejection Notes Alert - Show if BA is rejected */}
+        {baData.status === "REJECTED" && baData.rejectionReason && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 print:hidden">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-bold text-red-800">BA Ditolak</h3>
+                <p className="text-sm text-red-700 mt-1">{baData.rejectionReason}</p>
+                {user.role === "vendor" && (
+                  <button
+                    onClick={() => router.push(`/ba/create?edit=${baData.id}`)}
+                    className="mt-2 text-sm font-semibold text-red-800 hover:text-red-900 underline"
+                  >
+                    Edit dan Submit Ulang →
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Document Preview */}
         <div
@@ -624,6 +800,19 @@ export default function DetailBeritaAcara() {
                   WIB
                 </p>
               )}
+              {baData.rejectedAt && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Ditolak pada:{" "}
+                  {new Date(baData.rejectedAt).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
+                  WIB
+                </p>
+              )}
               <p className="text-xs text-gray-400 mt-2">
                 Dokumen ini dibuat secara digital melalui sistem Accenprove
               </p>
@@ -651,6 +840,133 @@ export default function DetailBeritaAcara() {
           }
         }
       `}</style>
+
+      {/* Approve Modal */}
+      {showApproveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Setujui Berita Acara</h3>
+            <p className="text-gray-700 mb-4">
+              Dengan menyetujui BA ini, Anda menyatakan bahwa semua informasi telah diperiksa dan disetujui.
+            </p>
+
+            {/* Signature Canvas */}
+            <div className="mb-4">
+              <label className="block text-base font-semibold text-gray-900 mb-2">
+                Tanda Tangan Direksi <span className="text-red-500">*</span>
+              </label>
+              <div className="border-2 border-primary-300 rounded-lg p-4 bg-gray-50">
+                <canvas
+                  ref={signatureCanvasRef}
+                  width={600}
+                  height={200}
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                  className="w-full h-48 bg-white border-2 border-dashed border-gray-300 rounded cursor-crosshair"
+                />
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  className="mt-2 px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Hapus Tanda Tangan
+                </button>
+              </div>
+            </div>
+
+            {submitError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">{submitError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowApproveModal(false)}
+                disabled={isSubmitting}
+                className="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg font-bold hover:bg-gray-400 disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={isSubmitting}
+                className="flex-1 bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    Memproses...
+                  </>
+                ) : (
+                  "Setujui BA"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Tolak Berita Acara</h3>
+            <p className="text-gray-700 mb-4">
+              Berikan alasan penolakan agar vendor dapat memperbaiki BA ini.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-base font-semibold text-gray-900 mb-2">
+                Alasan Penolakan <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={4}
+                placeholder="Contoh: Data barang tidak sesuai dengan kontrak..."
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              />
+            </div>
+
+            {submitError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">{submitError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectionReason("");
+                  setSubmitError("");
+                }}
+                disabled={isSubmitting}
+                className="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg font-bold hover:bg-gray-400 disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={isSubmitting}
+                className="flex-1 bg-red-600 text-white py-3 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    Memproses...
+                  </>
+                ) : (
+                  "Tolak BA"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

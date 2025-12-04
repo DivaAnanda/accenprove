@@ -1,28 +1,51 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { createBA, getBAById, updateBA } from "@/lib/ba-api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export default function CreateBAPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+  const isEditMode = !!editId;
+  
+  const { user, loading } = useAuth();
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [isLoadingBA, setIsLoadingBA] = useState(false);
+  const [rejectionInfo, setRejectionInfo] = useState<{
+    reason: string;
+    rejectedAt: Date;
+  } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  
-  // Mock user - In production, get from auth context
-  const user = {
-    role: "vendor" as const,
-    name: "Vendor User",
-  };
 
   // Role check - redirect if not vendor
   useEffect(() => {
-    if (user.role !== "vendor") {
+    if (!loading && user && user.role !== "vendor") {
       router.push("/dashboard");
     }
-  }, [user.role, router]);
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || user.role !== "vendor") {
+    return null; // Middleware + useEffect will handle redirect
+  }
 
   const [formData, setFormData] = useState({
     jenisBA: "",
@@ -49,6 +72,55 @@ export default function CreateBAPage() {
       }
     }
   }, []);
+
+  // Load BA data if in edit mode
+  useEffect(() => {
+    if (isEditMode && editId) {
+      setIsLoadingBA(true);
+      getBAById(parseInt(editId))
+        .then((ba) => {
+          // Pre-fill form data
+          setFormData({
+            jenisBA: ba.jenisBA,
+            nomorKontrak: ba.nomorKontrak,
+            namaVendor: ba.namaVendor,
+            tanggalPemeriksaan: ba.tanggalPemeriksaan,
+            lokasiPemeriksaan: ba.lokasiPemeriksaan,
+            namaPIC: ba.namaPIC,
+            jabatanPIC: ba.jabatanPIC,
+            deskripsiBarang: ba.deskripsiBarang,
+            jumlahBarang: ba.jumlahBarang,
+            kondisiBarang: ba.kondisiBarang,
+            keterangan: ba.keterangan || "",
+          });
+
+          // Show rejection info if available
+          if (ba.status === "REJECTED" && ba.rejectionReason && ba.rejectedAt) {
+            setRejectionInfo({
+              reason: ba.rejectionReason,
+              rejectedAt: new Date(ba.rejectedAt),
+            });
+          }
+
+          // Load existing signature to canvas
+          if (ba.signatureVendor && canvasRef.current) {
+            const ctx = canvasRef.current.getContext("2d");
+            const img = new Image();
+            img.onload = () => {
+              ctx?.drawImage(img, 0, 0);
+            };
+            img.src = ba.signatureVendor;
+          }
+        })
+        .catch((error) => {
+          alert("Gagal memuat data BA: " + error.message);
+          router.push("/dashboard");
+        })
+        .finally(() => {
+          setIsLoadingBA(false);
+        });
+    }
+  }, [isEditMode, editId, router]);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -125,36 +197,65 @@ export default function CreateBAPage() {
     setShowConfirmation(true);
   };
 
-  const handleConfirm = () => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const signatureData = canvas.toDataURL();
-      
-      // Generate BA number
-      const now = new Date();
-      const nomorBA = `BA/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-      
-      // Prepare BA data
-      const baData = {
-        id: Date.now().toString(),
-        nomorBA,
-        ...formData,
-        signatureVendor: signatureData,
-        signatureDireksi: null,
-        status: "PENDING",
-        createdAt: now.toISOString(),
-        vendorName: user.name,
-      };
+  const handleConfirm = async () => {
+    setIsSubmitting(true);
+    setSubmitError("");
 
-      // Save to localStorage
-      const existingBA = JSON.parse(localStorage.getItem("beritaAcara") || "[]");
-      localStorage.setItem("beritaAcara", JSON.stringify([...existingBA, baData]));
-      
-      console.log("BA Created:", baData);
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        throw new Error("Canvas not found");
+      }
+
+      const signatureData = canvas.toDataURL();
+
+      if (isEditMode && editId) {
+        // Update existing BA
+        await updateBA(parseInt(editId), {
+          jenisBA: formData.jenisBA as "BAPB" | "BAPP",
+          nomorKontrak: formData.nomorKontrak,
+          tanggalPemeriksaan: formData.tanggalPemeriksaan,
+          lokasiPemeriksaan: formData.lokasiPemeriksaan,
+          namaPIC: formData.namaPIC,
+          jabatanPIC: formData.jabatanPIC,
+          deskripsiBarang: formData.deskripsiBarang,
+          jumlahBarang: formData.jumlahBarang,
+          kondisiBarang: formData.kondisiBarang,
+          keterangan: formData.keterangan || undefined,
+          signatureVendor: signatureData,
+        });
+
+        alert("BA berhasil diperbarui dan akan direview kembali!");
+        router.push(`/ba/${editId}`);
+      } else {
+        // Create new BA
+        const createdBA = await createBA({
+          jenisBA: formData.jenisBA as "BAPB" | "BAPP",
+          nomorKontrak: formData.nomorKontrak,
+          tanggalPemeriksaan: formData.tanggalPemeriksaan,
+          lokasiPemeriksaan: formData.lokasiPemeriksaan,
+          namaPIC: formData.namaPIC,
+          jabatanPIC: formData.jabatanPIC,
+          deskripsiBarang: formData.deskripsiBarang,
+          jumlahBarang: formData.jumlahBarang,
+          kondisiBarang: formData.kondisiBarang,
+          keterangan: formData.keterangan || undefined,
+          signatureVendor: signatureData,
+        });
+
+        console.log("BA Created:", createdBA);
+
+        // Store BA ID in sessionStorage for success page
+        sessionStorage.setItem("lastCreatedBAId", createdBA.id.toString());
+
+        setShowConfirmation(false);
+        router.push("/ba/success");
+      }
+    } catch (error: any) {
+      console.error(isEditMode ? "Error updating BA:" : "Error creating BA:", error);
+      setSubmitError(error.message || `Failed to ${isEditMode ? "update" : "create"} BA. Please try again.`);
+      setIsSubmitting(false);
     }
-    
-    setShowConfirmation(false);
-    router.push("/ba/success");
   };
 
   const handleCancel = () => {
@@ -163,21 +264,54 @@ export default function CreateBAPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
-      <Navbar userRole={user.role} userName={user.name} />
+      <Navbar />
 
       {/* Main Content */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
-              Formulir Pembuatan Berita Acara
-            </h2>
-            <p className="text-base text-gray-600">
-              Lengkapi semua data di bawah ini untuk membuat Berita Acara
-            </p>
+        {isLoadingBA ? (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Memuat data BA...</p>
+            </div>
           </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
+            {/* Rejection Info Alert */}
+            {rejectionInfo && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 text-red-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-red-800 mb-1">
+                      BA Ditolak pada {new Date(rejectionInfo.rejectedAt).toLocaleDateString("id-ID")}
+                    </h3>
+                    <p className="text-sm text-red-700 mb-2">
+                      <strong>Alasan Penolakan:</strong> {rejectionInfo.reason}
+                    </p>
+                    <p className="text-xs text-red-600">
+                      Silakan perbaiki data sesuai catatan di atas, kemudian submit ulang untuk direview kembali.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                {isEditMode ? "Edit Berita Acara" : "Formulir Pembuatan Berita Acara"}
+              </h2>
+              <p className="text-base text-gray-600">
+                {isEditMode 
+                  ? "Perbarui data yang diperlukan dan submit ulang untuk direview"
+                  : "Lengkapi semua data di bawah ini untuk membuat Berita Acara"
+                }
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
             {/* Jenis BA */}
             <div>
               <label className="block text-base font-semibold text-gray-900 mb-2">
@@ -410,7 +544,7 @@ export default function CreateBAPage() {
                 type="submit"
                 className="flex-1 bg-primary-600 text-white py-4 rounded-lg text-lg font-bold hover:bg-primary-700 transition-colors shadow-md"
               >
-                Buat Berita Acara
+                {isEditMode ? "Perbarui & Submit Ulang" : "Buat Berita Acara"}
               </button>
               <button
                 type="button"
@@ -421,7 +555,8 @@ export default function CreateBAPage() {
               </button>
             </div>
           </form>
-        </div>
+          </div>
+        )}
       </main>
 
       <Footer />
@@ -450,29 +585,46 @@ export default function CreateBAPage() {
 
               {/* Title */}
               <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Konfirmasi Pembuatan Berita Acara
+                {isEditMode ? "Konfirmasi Update Berita Acara" : "Konfirmasi Pembuatan Berita Acara"}
               </h3>
 
               {/* Message */}
               <p className="text-base text-gray-700 mb-6 leading-relaxed">
-                Apakah Anda yakin ingin membuat Berita Acara dengan data yang
-                telah diisi? Pastikan semua informasi dan tanda tangan sudah
-                benar.
+                {isEditMode 
+                  ? "Apakah Anda yakin ingin memperbarui Berita Acara ini? Data akan direview ulang oleh Direksi."
+                  : "Apakah Anda yakin ingin membuat Berita Acara dengan data yang telah diisi? Pastikan semua informasi dan tanda tangan sudah benar."
+                }
               </p>
+
+              {/* Error Message */}
+              {submitError && (
+                <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-700">{submitError}</p>
+                </div>
+              )}
 
               {/* Buttons */}
               <div className="flex gap-3 w-full">
                 <button
                   onClick={handleCancel}
-                  className="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg text-base font-bold hover:bg-gray-400 transition-colors"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg text-base font-bold hover:bg-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Batal
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-base font-bold hover:bg-primary-700 transition-colors"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-base font-bold hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Ya, Buat BA
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      {isEditMode ? "Memperbarui..." : "Membuat..."}
+                    </>
+                  ) : (
+                    isEditMode ? "Ya, Perbarui BA" : "Ya, Buat BA"
+                  )}
                 </button>
               </div>
             </div>

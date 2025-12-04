@@ -2,20 +2,23 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
-type UserRole = "admin" | "direksi" | "dk" | "vendor" | null;
-
-interface NavbarProps {
-  userRole?: UserRole;
-  userName?: string;
-}
-
-export default function Navbar({ userRole = null, userName }: NavbarProps) {
+export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   // Menu items based on role
   const getMenuItems = () => {
-    switch (userRole) {
+    if (!user) {
+      return [
+        { label: "Beranda", href: "/" },
+        { label: "Masuk", href: "/login" },
+        { label: "Daftar", href: "/register" },
+      ];
+    }
+
+    switch (user.role) {
       case "admin":
         return [
           { label: "Dashboard", href: "/dashboard" },
@@ -44,9 +47,8 @@ export default function Navbar({ userRole = null, userName }: NavbarProps) {
         ];
       default:
         return [
-          { label: "Dashboard", href: "/" },
+          { label: "Beranda", href: "/" },
           { label: "Masuk", href: "/login" },
-          { label: "Buat Akun", href: "/register" },
         ];
     }
   };
@@ -59,7 +61,7 @@ export default function Navbar({ userRole = null, userName }: NavbarProps) {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href={userRole ? "/dashboard" : "/"} className="text-2xl font-bold text-primary-600">
+            <Link href={user ? "/dashboard" : "/"} className="text-2xl font-bold text-primary-600">
               Accenprove
             </Link>
           </div>
@@ -77,16 +79,23 @@ export default function Navbar({ userRole = null, userName }: NavbarProps) {
             ))}
             
             {/* User Info (if logged in) */}
-            {userRole && userName && (
+            {user && (
               <div className="ml-4 pl-4 border-l border-gray-300">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-                    {userName.charAt(0).toUpperCase()}
+                    {user.firstName.charAt(0).toUpperCase()}
                   </div>
                   <div className="text-sm">
-                    <p className="font-medium text-gray-900">{userName}</p>
-                    <p className="text-xs text-gray-500 capitalize">{userRole}</p>
+                    <p className="font-medium text-gray-900">{user.firstName} {user.lastName}</p>
+                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
                   </div>
+                  <button
+                    onClick={logout}
+                    className="ml-2 px-3 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Logout"
+                  >
+                    Logout
+                  </button>
                 </div>
               </div>
             )}
@@ -139,17 +148,26 @@ export default function Navbar({ userRole = null, userName }: NavbarProps) {
             ))}
             
             {/* User Info Mobile */}
-            {userRole && userName && (
+            {user && (
               <div className="mt-4 pt-4 border-t border-gray-200 px-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">
-                    {userName.charAt(0).toUpperCase()}
+                    {user.firstName.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{userName}</p>
-                    <p className="text-sm text-gray-500 capitalize">{userRole}</p>
+                    <p className="font-medium text-gray-900">{user.firstName} {user.lastName}</p>
+                    <p className="text-sm text-gray-500 capitalize">{user.role}</p>
                   </div>
                 </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left font-medium"
+                >
+                  Logout
+                </button>
               </div>
             )}
           </div>
