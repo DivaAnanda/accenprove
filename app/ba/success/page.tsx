@@ -2,66 +2,80 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getBAById } from "@/lib/ba-api";
+import type { BAData } from "@/lib/ba-api";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
-export default function BABerhasilDibuat() {
+export default function BASuccessPage() {
   const router = useRouter();
-  const [currentTime, setCurrentTime] = useState("");
+  const [baData, setBAData] = useState<BAData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const now = new Date();
-    setCurrentTime(
-      now.toLocaleTimeString("id-ID", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    // Get BA ID from sessionStorage
+    const baId = sessionStorage.getItem("lastCreatedBAId");
+    
+    if (!baId) {
+      // No BA ID found, redirect to dashboard
+      router.push("/dashboard");
+      return;
+    }
+
+    // Fetch BA from API
+    async function fetchBA() {
+      try {
+        const ba = await getBAById(parseInt(baId!));
+        setBAData(ba);
+        // Clear from sessionStorage
+        sessionStorage.removeItem("lastCreatedBAId");
+      } catch (err: any) {
+        console.error("Error fetching BA:", err);
+        setError(err.message || "Failed to load BA data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBA();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
     );
-  }, []);
+  }
 
-  // Simulasi data BA yang baru dibuat
-  const baData = {
-    nomorBA: "BA/2024/11/001",
-    jenisBA: "BAPB",
-    jenisBALengkap: "Berita Acara Pemeriksaan Barang",
-    nomorKontrak: "K-2024/11/001",
-    namaVendor: "PT. Vendor Teknologi Indonesia",
-    tanggalDibuat: new Date().toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }),
-    waktuDibuat: currentTime,
-    tanggalPemeriksaan: "25 November 2024",
-    lokasiPemeriksaan: "Gudang Pusat Jakarta",
-    deskripsiBarang: "Komputer Desktop Dell OptiPlex 7010",
-    jumlahBarang: "25 Unit",
-    kondisiBarang: "Baik",
-    status: "Menunggu Persetujuan Direksi",
-    statusColor: "yellow",
-  };
-
-  const getStatusColor = (color: string) => {
-    const colors = {
-      yellow: "bg-yellow-100 text-yellow-800 border-yellow-300",
-      green: "bg-green-100 text-green-800 border-green-300",
-      blue: "bg-blue-100 text-blue-800 border-blue-300",
-      red: "bg-red-100 text-red-800 border-red-300",
-    };
-    return colors[color as keyof typeof colors] || colors.yellow;
-  };
+  if (error || !baData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-red-600 mb-4">{error || "BA data not found"}</p>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            Kembali ke Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-bold text-teal-700">Accenprove</h1>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
+      <Navbar />
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Success Message Card */}
-        <div className="bg-white rounded-lg shadow-md p-8 mb-6">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-6">
           {/* Success Icon */}
           <div className="flex justify-center mb-6">
             <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center animate-pulse">
@@ -92,12 +106,18 @@ export default function BABerhasilDibuat() {
           <p className="text-base text-gray-600 text-center">
             Dokumen sedang menunggu persetujuan dari pihak terkait.
           </p>
+          
+          {/* BA Number */}
+          <div className="mt-6 p-4 bg-primary-50 rounded-lg border border-primary-200">
+            <p className="text-sm text-gray-600 text-center">Nomor Berita Acara:</p>
+            <p className="text-xl font-bold text-primary-600 text-center">{baData.nomorBA}</p>
+          </div>
         </div>
 
         {/* BA Details Card */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mb-6">
           {/* Header Card */}
-          <div className="bg-teal-700 px-6 py-4">
+          <div className="bg-primary-600 px-6 py-4">
             <h3 className="text-xl font-bold text-white">Alur Persetujuan</h3>
           </div>
 
@@ -127,7 +147,14 @@ export default function BABerhasilDibuat() {
                     Vendor - Dokumen Dibuat
                   </p>
                   <p className="text-sm text-gray-600">
-                    {baData.tanggalDibuat}, {baData.waktuDibuat} WIB
+                    {new Date(baData.createdAt).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}, {new Date(baData.createdAt).toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })} WIB
                   </p>
                 </div>
               </div>
@@ -213,11 +240,11 @@ export default function BABerhasilDibuat() {
         </div>
 
         {/* Action Buttons */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
           <div className="space-y-3">
             <button
-              onClick={() => router.push("/detail-ba")}
-              className="w-full bg-teal-700 text-white py-4 rounded-lg text-base font-bold hover:bg-teal-800 transition-colors shadow-md flex items-center justify-center"
+              onClick={() => router.push(`/ba/${baData.id}`)}
+              className="w-full bg-primary-600 text-white py-4 rounded-lg text-base font-bold hover:bg-primary-700 transition-colors shadow-md flex items-center justify-center"
             >
               <svg
                 className="w-5 h-5 mr-2"
@@ -242,8 +269,8 @@ export default function BABerhasilDibuat() {
             </button>
 
             <button
-              onClick={() => router.push("/buat-ba")}
-              className="w-full bg-white border-2 border-teal-700 text-teal-700 py-4 rounded-lg text-base font-bold hover:bg-teal-50 transition-colors flex items-center justify-center"
+              onClick={() => router.push("/ba/create")}
+              className="w-full bg-white border-2 border-primary-600 text-primary-600 py-4 rounded-lg text-base font-bold hover:bg-primary-50 transition-colors flex items-center justify-center"
             >
               <svg
                 className="w-5 h-5 mr-2"
@@ -289,22 +316,24 @@ export default function BABerhasilDibuat() {
             </p>
             <p className="text-sm text-center mt-1">
               <a
-                href="mailto:support@accenprove.com"
-                className="text-teal-700 hover:underline font-semibold"
+                href="mailto:info@accenprove.com"
+                className="text-primary-600 hover:underline font-semibold"
               >
-                support@accenprove.com
+                info@accenprove.com
               </a>
               {" atau "}
               <a
-                href="tel:+622112345678"
-                className="text-teal-700 hover:underline font-semibold"
+                href="tel:+62xxxxxxxxxx"
+                className="text-primary-600 hover:underline font-semibold"
               >
-                +62 21 1234 5678
+                +62 xxx xxxx xxxx
               </a>
             </p>
           </div>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }
