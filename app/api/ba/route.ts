@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/drizzle/db";
 import { beritaAcara, users } from "@/drizzle/schema";
 import { verifyToken, extractTokenFromCookies } from "@/lib/auth";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, asc, or, like, gte, lte, sql } from "drizzle-orm";
 
 /**
- * GET /api/ba - List Berita Acara (with role-based filtering)
- * Query params: status, vendorId
+ * GET /api/ba - List Berita Acara (with role-based filtering, pagination, search, and sorting)
+ * Query params: 
+ * - status: Filter by status (PENDING, APPROVED, REJECTED)
+ * - vendorId: Filter by vendor ID
+ * - search: Search across multiple fields (nomor BA, vendor, kontrak, deskripsi, PIC, etc)
+ * - startDate: Filter by start date (YYYY-MM-DD)
+ * - endDate: Filter by end date (YYYY-MM-DD)
+ * - sortBy: Sort field (createdAt, status, namaVendor)
+ * - sortOrder: Sort order (asc, desc)
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 10)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,8 +42,63 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
     const vendorIdFilter = searchParams.get("vendorId");
+    const searchQuery = searchParams.get("search");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
 
-    // Build query based on role
+    // Build WHERE conditions
+    const conditions = [];
+
+    // Role-based filtering
+    if (payload.role === "vendor") {
+      // Vendor can only see their own BA
+      conditions.push(eq(beritaAcara.vendorId, payload.userId));
+    }
+    // Admin, Direksi, and DK can see all BA
+
+    // Status filter
+    if (statusFilter) {
+      conditions.push(eq(beritaAcara.status, statusFilter as "PENDING" | "APPROVED" | "REJECTED"));
+    }
+
+    // Vendor filter (for admin/direksi/dk)
+    if (vendorIdFilter && payload.role !== "vendor") {
+      conditions.push(eq(beritaAcara.vendorId, parseInt(vendorIdFilter)));
+    }
+
+    // Search filter (flexible search across multiple fields)
+    if (searchQuery) {
+      const searchPattern = `%${searchQuery}%`;
+      conditions.push(
+        or(
+          like(beritaAcara.nomorBA, searchPattern),
+          like(beritaAcara.namaVendor, searchPattern),
+          like(beritaAcara.nomorKontrak, searchPattern),
+          like(beritaAcara.deskripsiBarang, searchPattern),
+          like(beritaAcara.namaPIC, searchPattern),
+          like(beritaAcara.jabatanPIC, searchPattern),
+          like(beritaAcara.lokasiPemeriksaan, searchPattern),
+          like(beritaAcara.keterangan, searchPattern)
+        )
+      );
+    }
+
+    // Date range filter (filter by createdAt)
+    if (startDate) {
+      const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
+      conditions.push(gte(beritaAcara.createdAt, sql`${startTimestamp}`));
+    }
+    if (endDate) {
+      // Add 1 day to include the entire end date
+      const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000) + 86400;
+      conditions.push(lte(beritaAcara.createdAt, sql`${endTimestamp}`));
+    }
+
+    // Build base query with joins
     let query = db
       .select({
         ba: beritaAcara,
@@ -49,49 +113,41 @@ export async function GET(request: NextRequest) {
       .leftJoin(users, eq(beritaAcara.vendorId, users.id))
       .$dynamic();
 
-    // Role-based filtering
-    if (payload.role === "vendor") {
-      // Vendor can only see their own BA
-      query = query.where(eq(beritaAcara.vendorId, payload.userId));
-    } else if (payload.role === "dk") {
-      // DK can only see approved BA
-      query = query.where(eq(beritaAcara.status, "APPROVED"));
-    }
-    // Admin and Direksi can see all BA
-
-    // Apply status filter if provided
-    if (statusFilter) {
-      const existingWhere = query.toSQL().sql.includes("WHERE");
-      if (existingWhere) {
-        query = query.where(
-          and(
-            eq(beritaAcara.status, statusFilter as "PENDING" | "APPROVED" | "REJECTED")
-          )
-        );
-      } else {
-        query = query.where(
-          eq(beritaAcara.status, statusFilter as "PENDING" | "APPROVED" | "REJECTED")
-        );
-      }
+    // Apply WHERE conditions
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
     }
 
-    // Apply vendor filter if provided (for admin/direksi/dk)
-    if (vendorIdFilter && payload.role !== "vendor") {
-      const vendorId = parseInt(vendorIdFilter);
-      const existingWhere = query.toSQL().sql.includes("WHERE");
-      if (existingWhere) {
-        query = query.where(and(eq(beritaAcara.vendorId, vendorId)));
-      } else {
-        query = query.where(eq(beritaAcara.vendorId, vendorId));
-      }
-    }
+    // Apply sorting
+    const orderByColumn = 
+      sortBy === "status" ? beritaAcara.status :
+      sortBy === "namaVendor" ? beritaAcara.namaVendor :
+      beritaAcara.createdAt;
+    
+    query = sortOrder === "asc" 
+      ? query.orderBy(asc(orderByColumn))
+      : query.orderBy(desc(orderByColumn));
 
-    // Execute query with ordering
-    const results = await query.orderBy(desc(beritaAcara.createdAt));
+    // Get total count (before pagination)
+    const allResults = await query;
+    const totalItems = allResults.length;
+    const totalPages = Math.ceil(totalItems / limit);
+
+    // Apply pagination
+    const offset = (page - 1) * limit;
+    const paginatedResults = allResults.slice(offset, offset + limit);
 
     return NextResponse.json({
       success: true,
-      data: results,
+      data: paginatedResults,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
     });
   } catch (error) {
     console.error("Error fetching BA:", error);
