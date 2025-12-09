@@ -13,6 +13,8 @@ export default function Navbar() {
     if (!user) {
       return [
         { label: "Beranda", href: "/" },
+        { label: "Tentang", href: "/tentang" },
+        { label: "Pengajuan BA", href: "/pengajuan-ba" },
         { label: "Masuk", href: "/login" },
         { label: "Daftar", href: "/register" },
       ];
@@ -24,19 +26,26 @@ export default function Navbar() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "Daftar BA", href: "/ba" },
           { label: "Daftar User", href: "/users" },
+          { label: "Audit Logs", href: "/audit-logs" },
           { label: "Profile", href: "/profile" },
+          { label: "Tentang", href: "/tentang" },
+          { label: "Pengajuan BA", href: "/pengajuan-ba" },
         ];
       case "direksi":
         return [
           { label: "Dashboard", href: "/dashboard" },
           { label: "Daftar BA", href: "/ba" },
           { label: "Profile", href: "/profile" },
+          { label: "Tentang", href: "/tentang" },
+          { label: "Pengajuan BA", href: "/pengajuan-ba" },
         ];
       case "dk":
         return [
           { label: "Dashboard", href: "/dashboard" },
           { label: "Daftar BA", href: "/ba" },
           { label: "Profile", href: "/profile" },
+          { label: "Tentang", href: "/tentang" },
+          { label: "Pengajuan BA", href: "/pengajuan-ba" },
         ];
       case "vendor":
         return [
@@ -44,10 +53,14 @@ export default function Navbar() {
           { label: "Buat BA", href: "/ba/create" },
           { label: "BA Saya", href: "/ba/my" },
           { label: "Profile", href: "/profile" },
+          { label: "Tentang", href: "/tentang" },
+          { label: "Pengajuan BA", href: "/pengajuan-ba" },
         ];
       default:
         return [
           { label: "Beranda", href: "/" },
+          { label: "Tentang", href: "/tentang" },
+          { label: "Pengajuan BA", href: "/pengajuan-ba" },
           { label: "Masuk", href: "/login" },
         ];
     }
@@ -56,7 +69,7 @@ export default function Navbar() {
   const menuItems = getMenuItems();
 
   return (
-    <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+    <nav className="border-b border-gray-100 bg-white/70 backdrop-blur-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -82,9 +95,17 @@ export default function Navbar() {
             {user && (
               <div className="ml-4 pl-4 border-l border-gray-300">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-                    {user.firstName.charAt(0).toUpperCase()}
-                  </div>
+                  {user.photo ? (
+                    <img
+                      src={user.photo}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full object-cover border-2 border-primary-100"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">
+                      {user.firstName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div className="text-sm">
                     <p className="font-medium text-gray-900">{user.firstName} {user.lastName}</p>
                     <p className="text-xs text-gray-500 capitalize">{user.role}</p>
@@ -151,9 +172,17 @@ export default function Navbar() {
             {user && (
               <div className="mt-4 pt-4 border-t border-gray-200 px-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">
-                    {user.firstName.charAt(0).toUpperCase()}
-                  </div>
+                  {user.photo ? (
+                    <img
+                      src={user.photo}
+                      alt="Profile"
+                      className="w-10 h-10 rounded-full object-cover border-2 border-primary-100"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">
+                      {user.firstName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <p className="font-medium text-gray-900">{user.firstName} {user.lastName}</p>
                     <p className="text-sm text-gray-500 capitalize">{user.role}</p>

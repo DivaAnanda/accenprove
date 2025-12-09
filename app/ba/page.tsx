@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import BAListFilters, { FilterValues } from "@/components/ba/BAListFilters";
 import BAListTable from "@/components/ba/BAListTable";
 import BAPagination from "@/components/ba/BAPagination";
@@ -345,6 +346,7 @@ export default function BAListPage() {
           )}
         </div>
       </div>
+      <Footer />
     </>
   );
 }

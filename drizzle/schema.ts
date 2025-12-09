@@ -16,6 +16,15 @@ export const users = sqliteTable(
     role: text("role", { enum: ["admin", "direksi", "dk", "vendor"] })
       .notNull()
       .default("vendor"),
+    
+    // Profile fields
+    phone: text("phone"),
+    address: text("address"),
+    photo: text("photo"), // Path to uploaded photo or null for default
+    
+    // Account status
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    
     isVerified: integer("is_verified", { mode: "boolean" }).notNull().default(false),
     verificationToken: text("verification_token"),
     resetToken: text("reset_token"),
@@ -121,6 +130,59 @@ export const beritaAcara = sqliteTable(
 );
 
 /**
+ * Audit Logs Table - Comprehensive Action Tracking
+ * Tracks all user actions for compliance and security monitoring
+ */
+export const auditLogs = sqliteTable(
+  "audit_logs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    
+    // Who did the action
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+    userEmail: text("user_email"), // Preserved even if user deleted
+    userRole: text("user_role"), // Role at the time of action
+    
+    // What action was performed
+    action: text("action").notNull(), // e.g., "ba.create", "user.login"
+    category: text("category", { 
+      enum: ["authentication", "profile", "ba", "admin", "system"] 
+    }).notNull(),
+    description: text("description").notNull(), // Human-readable description
+    
+    // Target of the action (if applicable)
+    targetType: text("target_type"), // e.g., "ba", "user", "profile"
+    targetId: integer("target_id"), // ID of affected resource
+    targetIdentifier: text("target_identifier"), // Additional identifier (email, BA number, etc.)
+    
+    // Context information
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    
+    // Additional metadata (JSON string)
+    metadata: text("metadata"), // Store as JSON string
+    
+    // Result of the action
+    status: text("status", { enum: ["success", "failed", "error"] }).notNull().default("success"),
+    errorMessage: text("error_message"), // If status is "failed" or "error"
+    
+    // Timestamp
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    userIdIdx: index("audit_user_id_idx").on(table.userId),
+    actionIdx: index("audit_action_idx").on(table.action),
+    categoryIdx: index("audit_category_idx").on(table.category),
+    statusIdx: index("audit_status_idx").on(table.status),
+    createdAtIdx: index("audit_created_at_idx").on(table.createdAt),
+    targetTypeIdx: index("audit_target_type_idx").on(table.targetType),
+    targetIdIdx: index("audit_target_id_idx").on(table.targetId),
+  })
+);
+
+/**
  * Type Exports for TypeScript
  */
 export type User = typeof users.$inferSelect;
@@ -128,6 +190,12 @@ export type NewUser = typeof users.$inferInsert;
 
 export type LoginHistory = typeof loginHistory.$inferSelect;
 export type NewLoginHistory = typeof loginHistory.$inferInsert;
+
+export type BeritaAcara = typeof beritaAcara.$inferSelect;
+export type NewBeritaAcara = typeof beritaAcara.$inferInsert;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
 
 export type BeritaAcara = typeof beritaAcara.$inferSelect;
 export type NewBeritaAcara = typeof beritaAcara.$inferInsert;

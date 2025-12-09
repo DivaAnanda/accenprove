@@ -9,6 +9,7 @@ interface User {
   lastName: string;
   email: string;
   role: "admin" | "direksi" | "dk" | "vendor";
+  photo?: string | null;
 }
 
 interface AuthContextType {

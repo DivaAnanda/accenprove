@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import BAListFilters, { FilterValues } from "@/components/ba/BAListFilters";
 import BAListTable from "@/components/ba/BAListTable";
 import BAPagination from "@/components/ba/BAPagination";
@@ -208,53 +209,51 @@ export default function MyBAListPage() {
   // Show loading state while auth is checking
   if (authLoading) {
     return (
-      <>
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
         <Navbar />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
             <p className="mt-4 text-gray-600">Memuat...</p>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   // Redirect message for non-vendors
   if (user?.role !== "vendor") {
     return (
-      <>
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
         <Navbar />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-gray-600">Mengalihkan...</p>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   // Check authorization
   if (!user) {
     return (
-      <>
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
         <Navbar />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Akses Ditolak</h2>
             <p className="text-gray-600">Silakan login terlebih dahulu.</p>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
       <Navbar />
-      
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -408,8 +407,8 @@ export default function MyBAListPage() {
               />
             </div>
           )}
-        </div>
       </div>
-    </>
+      <Footer />
+    </div>
   );
 }

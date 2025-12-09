@@ -4,6 +4,7 @@ import { db } from "@/drizzle/db";
 import { users, loginHistory } from "@/drizzle/schema";
 import { sendNewDeviceLoginEmail } from "@/lib/email";
 import { generateToken } from "@/lib/auth";
+import { logAudit, getRequestContext } from "@/lib/audit";
 import { eq, and, desc } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
@@ -25,7 +26,21 @@ export async function POST(request: NextRequest) {
       .where(eq(users.email, email))
       .limit(1);
 
+    const { ipAddress, userAgent } = getRequestContext(request);
+
     if (userResult.length === 0) {
+      // Log failed login attempt
+      await logAudit({
+        userEmail: email,
+        action: "user.login.failed",
+        category: "authentication",
+        description: `Failed login attempt for ${email} - user not found`,
+        ipAddress,
+        userAgent,
+        status: "failed",
+        errorMessage: "User not found",
+      });
+      
       return NextResponse.json(
         { success: false, message: "✗ Email atau kata sandi salah!", error: "INVALID_CREDENTIALS" },
         { status: 401 }
@@ -38,6 +53,20 @@ export async function POST(request: NextRequest) {
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
+      // Log failed login attempt
+      await logAudit({
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: "user.login.failed",
+        category: "authentication",
+        description: `Failed login attempt for ${user.email} - invalid password`,
+        ipAddress,
+        userAgent,
+        status: "failed",
+        errorMessage: "Invalid password",
+      });
+      
       return NextResponse.json(
         { success: false, message: "✗ Email atau kata sandi salah!", error: "INVALID_CREDENTIALS" },
         { status: 401 }
@@ -52,10 +81,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get device info
-    const ipAddress = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-    const userAgent = request.headers.get("user-agent") || "unknown";
+    // Check if account is active
+    if (!user.isActive) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: "✗ Akun Anda telah dinonaktifkan oleh administrator. Silakan hubungi admin untuk informasi lebih lanjut.", 
+          error: "ACCOUNT_DEACTIVATED" 
+        },
+        { status: 403 }
+      );
+    }
 
+    // Get device info from userAgent
     let deviceInfo = "Unknown Device";
     if (userAgent.includes("Mobile")) {
       deviceInfo = "Mobile Device";
@@ -96,6 +134,23 @@ export async function POST(request: NextRequest) {
 
     // Generate JWT token
     const token = generateToken(user);
+
+    // Log successful login
+    await logAudit({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: "user.login",
+      category: "authentication",
+      description: `${user.firstName} ${user.lastName} logged in successfully`,
+      ipAddress,
+      userAgent,
+      metadata: {
+        deviceInfo,
+        isNewDevice,
+      },
+      status: "success",
+    });
 
     // Create response with token in httpOnly cookie
     const response = NextResponse.json(
