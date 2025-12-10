@@ -3,6 +3,7 @@ import { db } from "@/drizzle/db";
 import { users } from "@/drizzle/schema";
 import { verifyToken, extractTokenFromCookies } from "@/lib/auth";
 import { eq } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 /**
  * PATCH /api/users/[id]/status - Toggle user active status (admin only)
@@ -101,6 +102,19 @@ export async function PATCH(
       );
     }
 
+    // Fetch full target user info for audit
+    const targetUserFull = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
     // Update user status
     await db
       .update(users)
@@ -109,6 +123,36 @@ export async function PATCH(
         updatedAt: new Date()
       })
       .where(eq(users.id, userId));
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    const action = isActive ? "admin.user.activate" : "admin.user.deactivate";
+    const targetName = `${targetUserFull[0].firstName} ${targetUserFull[0].lastName}`;
+    
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action,
+      category: "admin",
+      description: `${payload.email} ${isActive ? 'activated' : 'deactivated'} user ${targetUserFull[0].email}`,
+      targetType: "user",
+      targetId: userId,
+      targetIdentifier: targetUserFull[0].email,
+      ipAddress,
+      userAgent,
+      metadata: {
+        targetUser: {
+          id: userId,
+          email: targetUserFull[0].email,
+          name: targetName,
+          role: targetUserFull[0].role,
+        },
+        previousStatus: !isActive,
+        newStatus: isActive,
+      },
+      status: "success",
+    });
 
     return NextResponse.json({
       success: true,

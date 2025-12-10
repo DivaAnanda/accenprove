@@ -3,6 +3,7 @@ import { db } from "@/drizzle/db";
 import { users } from "@/drizzle/schema";
 import { verifyToken, extractTokenFromCookies } from "@/lib/auth";
 import { eq } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 /**
  * GET /api/users/[id] - Get user by ID (admin only)
@@ -82,6 +83,31 @@ export async function GET(
         { status: 404 }
       );
     }
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "admin.user.view",
+      category: "admin",
+      description: `${payload.email} viewed user details for ${userResult[0].email}`,
+      targetType: "user",
+      targetId: userResult[0].id,
+      targetIdentifier: userResult[0].email,
+      ipAddress,
+      userAgent,
+      metadata: {
+        targetUser: {
+          id: userResult[0].id,
+          email: userResult[0].email,
+          role: userResult[0].role,
+          isActive: userResult[0].isActive,
+        },
+      },
+      status: "success",
+    });
 
     return NextResponse.json({
       success: true,

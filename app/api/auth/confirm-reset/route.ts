@@ -4,6 +4,7 @@ import { db } from "@/drizzle/db";
 import { users } from "@/drizzle/schema";
 import { sendPasswordChangedEmail } from "@/lib/email";
 import { eq, and, gt } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,6 +73,20 @@ export async function POST(request: NextRequest) {
     } catch (emailError) {
       console.error("Email sending failed:", emailError);
     }
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: "user.reset_password.confirm",
+      category: "authentication",
+      description: `Password successfully reset for ${user.email}`,
+      ipAddress,
+      userAgent,
+      status: "success",
+    });
 
     return NextResponse.json(
       {

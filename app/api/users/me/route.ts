@@ -3,6 +3,7 @@ import { db } from "@/drizzle/db";
 import { users } from "@/drizzle/schema";
 import { verifyToken, extractTokenFromCookies } from "@/lib/auth";
 import { eq } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 /**
  * GET /api/users/me - Get current user profile
@@ -51,6 +52,20 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "user.profile.view",
+      category: "profile",
+      description: `${payload.email} viewed their profile`,
+      ipAddress,
+      userAgent,
+      status: "success",
+    });
 
     return NextResponse.json({
       success: true,
@@ -147,6 +162,28 @@ export async function PUT(request: NextRequest) {
       .from(users)
       .where(eq(users.id, payload.userId))
       .limit(1);
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "user.profile.update",
+      category: "profile",
+      description: `${payload.email} updated their profile`,
+      ipAddress,
+      userAgent,
+      metadata: {
+        updatedFields: {
+          firstName,
+          lastName,
+          phone,
+          address: address || null,
+        },
+      },
+      status: "success",
+    });
 
     return NextResponse.json({
       success: true,

@@ -3,6 +3,7 @@ import { db } from "@/drizzle/db";
 import { beritaAcara, users } from "@/drizzle/schema";
 import { verifyToken, extractTokenFromCookies } from "@/lib/auth";
 import { eq, and, desc, asc, or, like, gte, lte, sql } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 /**
  * GET /api/ba - List Berita Acara (with role-based filtering, pagination, search, and sorting)
@@ -285,6 +286,34 @@ export async function POST(request: NextRequest) {
       .from(beritaAcara)
       .where(eq(beritaAcara.id, Number(result.lastInsertRowid)))
       .limit(1);
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "ba.create",
+      category: "ba",
+      description: `${namaVendor} created BA ${nomorBA}`,
+      targetType: "berita_acara",
+      targetId: Number(result.lastInsertRowid),
+      targetIdentifier: nomorBA,
+      ipAddress,
+      userAgent,
+      metadata: {
+        nomorBA,
+        jenisBA,
+        nomorKontrak,
+        namaVendor,
+        tanggalPemeriksaan,
+        lokasiPemeriksaan,
+        deskripsiBarang,
+        jumlahBarang,
+        kondisiBarang,
+      },
+      status: "success",
+    });
 
     return NextResponse.json({
       success: true,

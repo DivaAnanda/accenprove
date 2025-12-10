@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { writeFile, unlink } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 /**
  * POST /api/users/me/photo - Upload profile photo
@@ -104,6 +105,26 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(users.id, payload.userId));
 
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "user.profile.photo.upload",
+      category: "profile",
+      description: `${payload.email} uploaded a new profile photo`,
+      ipAddress,
+      userAgent,
+      metadata: {
+        filename,
+        photoPath,
+        fileSize: file.size,
+        fileType: file.type,
+      },
+      status: "success",
+    });
+
     return NextResponse.json({
       success: true,
       message: "Photo uploaded successfully",
@@ -171,6 +192,23 @@ export async function DELETE(request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(users.id, payload.userId));
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "user.profile.photo.delete",
+      category: "profile",
+      description: `${payload.email} deleted their profile photo`,
+      ipAddress,
+      userAgent,
+      metadata: {
+        previousPhoto: currentUser[0]?.photo,
+      },
+      status: "success",
+    });
 
     return NextResponse.json({
       success: true,

@@ -3,6 +3,7 @@ import { db } from "@/drizzle/db";
 import { users } from "@/drizzle/schema";
 import { verifyToken, extractTokenFromCookies } from "@/lib/auth";
 import { eq, like, or, and, sql, desc } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 /**
  * GET /api/users - List all users (admin only with pagination & filters)
@@ -132,6 +133,29 @@ export async function GET(request: NextRequest) {
 
     const totalItems = countResult[0]?.count || 0;
     const totalPages = Math.ceil(totalItems / limit);
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "admin.users.list",
+      category: "admin",
+      description: `${payload.email} viewed user list`,
+      ipAddress,
+      userAgent,
+      metadata: {
+        filters: {
+          search,
+          role: roleFilter,
+          status: statusFilter,
+        },
+        pagination: { page, limit },
+        resultCount: userList.length,
+      },
+      status: "success",
+    });
 
     return NextResponse.json({
       success: true,

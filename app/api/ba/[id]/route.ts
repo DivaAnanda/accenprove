@@ -3,6 +3,7 @@ import { db } from "@/drizzle/db";
 import { beritaAcara, users } from "@/drizzle/schema";
 import { verifyToken, extractTokenFromCookies } from "@/lib/auth";
 import { eq } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 /**
  * GET /api/ba/[id] - Get Berita Acara detail
@@ -74,6 +75,28 @@ export async function GET(
         { status: 403 }
       );
     }
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "ba.view",
+      category: "ba",
+      description: `${payload.email} viewed BA ${ba.nomorBA}`,
+      targetType: "berita_acara",
+      targetId: ba.id,
+      targetIdentifier: ba.nomorBA,
+      ipAddress,
+      userAgent,
+      metadata: {
+        nomorBA: ba.nomorBA,
+        status: ba.status,
+        jenisBA: ba.jenisBA,
+      },
+      status: "success",
+    });
 
     return NextResponse.json({
       success: true,
@@ -175,6 +198,34 @@ export async function PATCH(
         })
         .where(eq(beritaAcara.id, baId));
 
+      // Log audit
+      const { ipAddress: approveIP, userAgent: approveUA } = getRequestContext(request);
+      await logAudit({
+        userId: payload.userId,
+        userEmail: payload.email,
+        userRole: payload.role,
+        action: "ba.approve",
+        category: "ba",
+        description: `${payload.email} approved BA ${ba.nomorBA}`,
+        targetType: "berita_acara",
+        targetId: ba.id,
+        targetIdentifier: ba.nomorBA,
+        ipAddress: approveIP,
+        userAgent: approveUA,
+        metadata: {
+          nomorBA: ba.nomorBA,
+          previousStatus: "PENDING",
+          newStatus: "APPROVED",
+          approvedBy: payload.userId,
+          approverName: payload.email,
+          approverRole: payload.role,
+          jenisBA: ba.jenisBA,
+          namaVendor: ba.namaVendor,
+          nomorKontrak: ba.nomorKontrak,
+        },
+        status: "success",
+      });
+
       return NextResponse.json({
         success: true,
         message: "Berita Acara approved successfully",
@@ -215,6 +266,35 @@ export async function PATCH(
           updatedAt: new Date(),
         })
         .where(eq(beritaAcara.id, baId));
+
+      // Log audit
+      const { ipAddress: rejectIP, userAgent: rejectUA } = getRequestContext(request);
+      await logAudit({
+        userId: payload.userId,
+        userEmail: payload.email,
+        userRole: payload.role,
+        action: "ba.reject",
+        category: "ba",
+        description: `${payload.email} rejected BA ${ba.nomorBA}`,
+        targetType: "berita_acara",
+        targetId: ba.id,
+        targetIdentifier: ba.nomorBA,
+        ipAddress: rejectIP,
+        userAgent: rejectUA,
+        metadata: {
+          nomorBA: ba.nomorBA,
+          previousStatus: "PENDING",
+          newStatus: "REJECTED",
+          rejectedBy: payload.userId,
+          rejectorName: payload.email,
+          rejectorRole: payload.role,
+          rejectionReason,
+          jenisBA: ba.jenisBA,
+          namaVendor: ba.namaVendor,
+          nomorKontrak: ba.nomorKontrak,
+        },
+        status: "success",
+      });
 
       return NextResponse.json({
         success: true,
@@ -288,6 +368,31 @@ export async function PATCH(
         .update(beritaAcara)
         .set(updateData)
         .where(eq(beritaAcara.id, baId));
+
+      // Log audit
+      const { ipAddress: editIP, userAgent: editUA } = getRequestContext(request);
+      await logAudit({
+        userId: payload.userId,
+        userEmail: payload.email,
+        userRole: payload.role,
+        action: "ba.update",
+        category: "ba",
+        description: `${payload.email} updated BA ${ba.nomorBA}`,
+        targetType: "berita_acara",
+        targetId: ba.id,
+        targetIdentifier: ba.nomorBA,
+        ipAddress: editIP,
+        userAgent: editUA,
+        metadata: {
+          nomorBA: ba.nomorBA,
+          previousStatus: ba.status,
+          newStatus: updateData.status || ba.status,
+          updatedFields: Object.keys(updateData).filter(key => key !== 'updatedAt'),
+          jenisBA: updateData.jenisBA || ba.jenisBA,
+          nomorKontrak: updateData.nomorKontrak || ba.nomorKontrak,
+        },
+        status: "success",
+      });
 
       return NextResponse.json({
         success: true,

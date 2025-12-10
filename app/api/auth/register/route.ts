@@ -5,6 +5,7 @@ import { db } from "@/drizzle/db";
 import { users } from "@/drizzle/schema";
 import { sendVerificationEmail } from "@/lib/email";
 import { eq } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,6 +50,18 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (existingUser.length > 0) {
+      const { ipAddress, userAgent } = getRequestContext(request);
+      await logAudit({
+        userEmail: email,
+        action: "user.register.failed",
+        category: "authentication",
+        description: `Registration failed: email ${email} already exists`,
+        ipAddress,
+        userAgent,
+        status: "failed",
+        errorMessage: "Email already registered",
+      });
+      
       return NextResponse.json(
         { success: false, message: "✗ Email sudah terdaftar!", error: "EMAIL_EXISTS" },
         { status: 400 }
@@ -80,6 +93,24 @@ export async function POST(request: NextRequest) {
       console.error("Email sending failed:", emailError);
       // Continue even if email fails
     }
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: newUser[0].id,
+      userEmail: email,
+      userRole: newUser[0].role,
+      action: "user.register",
+      category: "authentication",
+      description: `New user registered: ${firstName} ${lastName} (${email})`,
+      ipAddress,
+      userAgent,
+      metadata: {
+        role: newUser[0].role,
+        requiresVerification: true,
+      },
+      status: "success",
+    });
 
     return NextResponse.json(
       {

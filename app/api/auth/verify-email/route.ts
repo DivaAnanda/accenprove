@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/drizzle/db";
 import { users } from "@/drizzle/schema";
 import { eq } from "drizzle-orm";
+import { logAudit, getRequestContext } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,6 +46,20 @@ export async function GET(request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(users.id, user.id));
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: "user.verify_email",
+      category: "authentication",
+      description: `Email verified for ${user.email}`,
+      ipAddress,
+      userAgent,
+      status: "success",
+    });
 
     // Redirect to login page with success message
     return NextResponse.redirect(new URL("/login?verified=success", request.url));

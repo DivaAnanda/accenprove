@@ -11,7 +11,9 @@
     "db:studio": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx scripts/seed-ba.ts"
+    "db:seed": "tsx scripts/seed.ts && tsx scripts/seed-ba.ts",
+    "db:seed:users": "tsx scripts/seed.ts",
+    "db:seed:ba": "tsx scripts/seed-ba.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
