@@ -3,8 +3,11 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { getBAById, approveBA, rejectBA } from "@/lib/ba-api";
 import type { BAData } from "@/lib/ba-api";
+import toast from "react-hot-toast";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { StatusRibbon } from "@/components/ba/StatusRibbon";
+import { BATimeline } from "@/components/ba/BATimeline";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 
@@ -60,25 +63,55 @@ export default function DetailBeritaAcara() {
     }
   }, [showApproveModal]);
 
+  // Signature drawing helpers
+  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    let clientX: number, clientY: number;
+
+    if ('touches' in e) {
+      // Touch event
+      const touch = e.touches[0] || e.changedTouches[0];
+      clientX = touch.clientX;
+      clientY = touch.clientY;
+    } else {
+      // Mouse event
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
   // Signature drawing handlers
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     setIsDrawing(true);
     const canvas = signatureCanvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (ctx && canvas) {
-      const rect = canvas.getBoundingClientRect();
+      const { x, y } = getCoordinates(e);
       ctx.beginPath();
-      ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+      ctx.moveTo(x, y);
     }
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     if (!isDrawing) return;
     const canvas = signatureCanvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (ctx && canvas) {
-      const rect = canvas.getBoundingClientRect();
-      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+      const { x, y } = getCoordinates(e);
+      ctx.lineTo(x, y);
       ctx.stroke();
     }
   };
@@ -126,6 +159,7 @@ export default function DetailBeritaAcara() {
       }
 
       const signatureData = canvas.toDataURL();
+      const loadingToast = toast.loading("Menyetujui Berita Acara...");
 
       await approveBA(parseInt(id), signatureData);
 
@@ -134,10 +168,11 @@ export default function DetailBeritaAcara() {
       setBAData(updatedBA);
 
       setShowApproveModal(false);
-      alert("Berita Acara berhasil disetujui!");
+      toast.success("Berita Acara berhasil disetujui!", { id: loadingToast });
     } catch (error: any) {
       console.error("Error approving BA:", error);
       setSubmitError(error.message || "Failed to approve BA");
+      toast.error(error.message || "Gagal menyetujui BA");
     } finally {
       setIsSubmitting(false);
     }
@@ -152,6 +187,7 @@ export default function DetailBeritaAcara() {
 
     setIsSubmitting(true);
     setSubmitError("");
+    const loadingToast = toast.loading("Menolak Berita Acara...");
 
     try {
       await rejectBA(parseInt(id), rejectionReason);
@@ -162,10 +198,11 @@ export default function DetailBeritaAcara() {
 
       setShowRejectModal(false);
       setRejectionReason("");
-      alert("Berita Acara telah ditolak.");
+      toast.success("Berita Acara telah ditolak.", { id: loadingToast });
     } catch (error: any) {
       console.error("Error rejecting BA:", error);
       setSubmitError(error.message || "Failed to reject BA");
+      toast.error(error.message || "Gagal menolak BA", { id: loadingToast });
     } finally {
       setIsSubmitting(false);
     }
@@ -173,6 +210,8 @@ export default function DetailBeritaAcara() {
 
   const handleDownloadPDF = () => {
     if (!baData) return;
+    
+    const loadingToast = toast.loading("Mengunduh PDF...");
 
     // Import jsPDF dinamis untuk client-side
     import("jspdf").then((module) => {
@@ -203,7 +242,7 @@ export default function DetailBeritaAcara() {
       yPos += 8;
 
       doc.setFont("helvetica", "normal");
-      doc.text(`Nomor Kontrak: ${baData.nomorKontrak}`, 20, yPos);
+      doc.text(`Nomor Kontrak/Resi/Lainnya: ${baData.nomorKontrak}`, 20, yPos);
       yPos += 6;
       doc.text(`Tanggal Pemeriksaan: ${baData.tanggalPemeriksaan}`, 20, yPos);
       yPos += 6;
@@ -235,9 +274,9 @@ export default function DetailBeritaAcara() {
       doc.text(descLines, 20, yPos);
       yPos += descLines.length * 6 + 6;
 
-      doc.text(`Jumlah: ${baData.jumlahBarang}`, 20, yPos);
+      doc.text(`Jumlah Barang/Pekerjaan: ${baData.jumlahBarang}`, 20, yPos);
       yPos += 6;
-      doc.text(`Kondisi: ${baData.kondisiBarang}`, 20, yPos);
+      doc.text(`Kondisi Barang/Pekerjaan: ${baData.kondisiBarang}`, 20, yPos);
       yPos += 10;
 
       // Keterangan
@@ -304,6 +343,10 @@ export default function DetailBeritaAcara() {
 
       // Save PDF
       doc.save(`BA_${baData.nomorBA.replace(/\//g, "_")}.pdf`);
+      toast.success("PDF berhasil diunduh!", { id: loadingToast });
+    }).catch((error) => {
+      console.error("Error generating PDF:", error);
+      toast.error("Gagal mengunduh PDF", { id: loadingToast });
     });
   };
 
@@ -316,12 +359,12 @@ export default function DetailBeritaAcara() {
 
     const statusConfig = {
       PENDING: {
-        bg: "bg-yellow-100",
+        bg: "bg-gradient-to-r from-yellow-100 to-orange-100",
         text: "text-yellow-800",
         border: "border-yellow-300",
         label: "Menunggu Persetujuan Direksi",
         icon: (
-          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path
               fillRule="evenodd"
               d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
@@ -331,12 +374,12 @@ export default function DetailBeritaAcara() {
         ),
       },
       APPROVED: {
-        bg: "bg-green-100",
+        bg: "bg-gradient-to-r from-green-100 to-emerald-100",
         text: "text-green-800",
         border: "border-green-300",
         label: "Disetujui",
         icon: (
-          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path
               fillRule="evenodd"
               d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -346,12 +389,12 @@ export default function DetailBeritaAcara() {
         ),
       },
       REJECTED: {
-        bg: "bg-red-100",
+        bg: "bg-gradient-to-r from-red-100 to-pink-100",
         text: "text-red-800",
         border: "border-red-300",
         label: "Ditolak",
         icon: (
-          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path
               fillRule="evenodd"
               d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -366,7 +409,7 @@ export default function DetailBeritaAcara() {
 
     return (
       <span
-        className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold border-2 ${config.bg} ${config.text} ${config.border}`}
+        className={`inline-flex items-center px-5 py-2.5 rounded-xl text-base font-bold border-2 ${config.bg} ${config.text} ${config.border} shadow-sm`}
       >
         {config.icon}
         {config.label}
@@ -376,12 +419,16 @@ export default function DetailBeritaAcara() {
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-primary-50/20">
         <Navbar />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Memuat data...</p>
+            <div className="relative">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary-200 border-t-primary-600 mx-auto mb-4"></div>
+              <div className="absolute inset-0 rounded-full bg-primary-100/20 blur-xl"></div>
+            </div>
+            <p className="text-gray-700 font-medium text-lg">Memuat data BA...</p>
+            <p className="text-gray-500 text-sm mt-2">Harap tunggu sebentar</p>
           </div>
         </div>
         <Footer />
@@ -418,17 +465,17 @@ export default function DetailBeritaAcara() {
     : "Berita Acara Penerimaan Pekerjaan";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-primary-50/20">
       <Navbar />
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Action Buttons - No Print */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6 print:hidden">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6 mb-6 print:hidden">
           <div className="flex flex-wrap gap-3">
             <button
               onClick={handleDownloadPDF}
-              className="flex-1 min-w-[200px] bg-primary-600 text-white py-3 px-6 rounded-lg text-base font-bold hover:bg-primary-700 transition-colors flex items-center justify-center"
+              className="flex-1 min-w-[200px] bg-gradient-to-r from-primary-600 to-primary-700 text-white py-3 px-6 rounded-xl text-base font-bold hover:scale-105 transition-transform flex items-center justify-center shadow-md"
             >
               <svg
                 className="w-5 h-5 mr-2"
@@ -448,7 +495,7 @@ export default function DetailBeritaAcara() {
 
             <button
               onClick={handlePrint}
-              className="flex-1 min-w-[200px] bg-white border-2 border-primary-600 text-primary-600 py-3 px-6 rounded-lg text-base font-bold hover:bg-primary-50 transition-colors flex items-center justify-center"
+              className="flex-1 min-w-[200px] bg-white border-2 border-primary-600 text-primary-600 py-3 px-6 rounded-xl text-base font-bold hover:bg-primary-50 transition-colors flex items-center justify-center"
             >
               <svg
                 className="w-5 h-5 mr-2"
@@ -468,7 +515,7 @@ export default function DetailBeritaAcara() {
 
             <button
               onClick={() => router.push("/dashboard")}
-              className="min-w-[200px] bg-gray-100 border-2 border-gray-300 text-gray-700 py-3 px-6 rounded-lg text-base font-bold hover:bg-gray-200 transition-colors flex items-center justify-center"
+              className="min-w-[200px] bg-white border-2 border-gray-300 text-gray-700 py-3 px-6 rounded-xl text-base font-bold hover:bg-gray-50 transition-colors flex items-center justify-center"
             >
               <svg
                 className="w-5 h-5 mr-2"
@@ -490,12 +537,22 @@ export default function DetailBeritaAcara() {
 
         {/* Direksi Action Buttons - Only show for PENDING BA */}
         {user.role === "direksi" && baData.status === "PENDING" && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6 print:hidden border-2 border-orange-300">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">Aksi Direksi</h3>
+          <div className="bg-white border-2 border-primary-200 rounded-2xl shadow-lg p-6 mb-6 print:hidden">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Aksi Direksi</h3>
+                <p className="text-sm text-gray-600">Setujui atau tolak berita acara ini</p>
+              </div>
+            </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowApproveModal(true)}
-                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg text-base font-bold hover:bg-green-700 transition-colors flex items-center justify-center"
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 text-white py-3 px-6 rounded-xl text-base font-bold hover:scale-105 transition-transform flex items-center justify-center shadow-md"
               >
                 <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -504,7 +561,7 @@ export default function DetailBeritaAcara() {
               </button>
               <button
                 onClick={() => setShowRejectModal(true)}
-                className="flex-1 bg-red-600 text-white py-3 px-6 rounded-lg text-base font-bold hover:bg-red-700 transition-colors flex items-center justify-center"
+                className="flex-1 bg-gradient-to-r from-red-600 to-pink-700 text-white py-3 px-6 rounded-xl text-base font-bold hover:scale-105 transition-transform flex items-center justify-center shadow-md"
               >
                 <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -517,22 +574,27 @@ export default function DetailBeritaAcara() {
 
         {/* Rejection Notes Alert - Show if BA is rejected */}
         {baData.status === "REJECTED" && baData.rejectionReason && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 print:hidden">
+          <div className="bg-gradient-to-r from-red-50 to-pink-50 border-2 border-red-300 rounded-2xl p-6 mb-6 print:hidden shadow-lg">
             <div className="flex">
               <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="h-6 w-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
               </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-bold text-red-800">BA Ditolak</h3>
-                <p className="text-sm text-red-700 mt-1">{baData.rejectionReason}</p>
+              <div className="ml-4 flex-1">
+                <h3 className="text-base font-bold text-red-900">BA Ditolak</h3>
+                <p className="text-sm text-red-800 mt-2 leading-relaxed">{baData.rejectionReason}</p>
                 {user.role === "vendor" && (
                   <button
                     onClick={() => router.push(`/ba/create?edit=${baData.id}`)}
-                    className="mt-2 text-sm font-semibold text-red-800 hover:text-red-900 underline"
+                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold text-sm"
                   >
-                    Edit dan Submit Ulang →
+                    Edit dan Submit Ulang
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </button>
                 )}
               </div>
@@ -543,21 +605,26 @@ export default function DetailBeritaAcara() {
         {/* Document Preview */}
         <div
           ref={printRef}
-          className="bg-white rounded-lg shadow-md overflow-hidden"
+          className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
         >
+          {/* Status Ribbon */}
+          <div className="print:hidden">
+            <StatusRibbon status={baData.status} />
+          </div>
+
           {/* Document Header */}
-          <div className="bg-primary-600 px-8 py-6 text-center">
-            <h2 className="text-2xl font-bold text-white mb-2">
-              {jenisBALengkap.toUpperCase()}
-            </h2>
-            <p className="text-white text-lg">Nomor: {baData.nomorBA}</p>
+          <div className="bg-gradient-to-r from-primary-600 via-primary-700 to-primary-800 px-8 py-8 text-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-white/5"></div>
+            <div className="relative z-10">
+              <h2 className="text-3xl font-bold text-white mb-3">
+                {jenisBALengkap.toUpperCase()}
+              </h2>
+              <p className="text-white text-xl font-semibold">Nomor: {baData.nomorBA}</p>
+            </div>
           </div>
 
           {/* Document Body */}
           <div className="p-8">
-            {/* Status Badge */}
-            <div className="mb-6 print:hidden">{getStatusBadge()}</div>
-
             {/* Informasi Kontrak */}
             <div className="mb-8">
               <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b-2 border-primary-600">
@@ -566,7 +633,7 @@ export default function DetailBeritaAcara() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-semibold text-gray-600 mb-1">
-                    Nomor Kontrak
+                    Nomor Kontrak / Resi / Lainnya
                   </p>
                   <p className="text-base font-semibold text-gray-900">
                     {baData.nomorKontrak}
@@ -819,6 +886,11 @@ export default function DetailBeritaAcara() {
             </div>
           </div>
         </div>
+
+        {/* Timeline Section */}
+        <div className="mt-8 print:hidden">
+          <BATimeline baData={baData} />
+        </div>
       </main>
 
       <Footer />
@@ -843,19 +915,32 @@ export default function DetailBeritaAcara() {
 
       {/* Approve Modal */}
       {showApproveModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">Setujui Berita Acara</h3>
-            <p className="text-gray-700 mb-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 border border-gray-200 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">Setujui Berita Acara</h3>
+                <p className="text-sm text-gray-600 mt-1">Bubuhkan tanda tangan digital Anda</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6 leading-relaxed">
               Dengan menyetujui BA ini, Anda menyatakan bahwa semua informasi telah diperiksa dan disetujui.
             </p>
 
             {/* Signature Canvas */}
-            <div className="mb-4">
-              <label className="block text-base font-semibold text-gray-900 mb-2">
+            <div className="mb-6">
+              <label className="block text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
                 Tanda Tangan Direksi <span className="text-red-500">*</span>
               </label>
-              <div className="border-2 border-primary-300 rounded-lg p-4 bg-gray-50">
+              <div className="border-2 border-primary-300 rounded-xl p-5 bg-gradient-to-br from-gray-50 to-primary-50/30">
                 <canvas
                   ref={signatureCanvasRef}
                   width={600}
@@ -864,12 +949,16 @@ export default function DetailBeritaAcara() {
                   onMouseMove={draw}
                   onMouseUp={stopDrawing}
                   onMouseLeave={stopDrawing}
-                  className="w-full h-48 bg-white border-2 border-dashed border-gray-300 rounded cursor-crosshair"
+                  onTouchStart={startDrawing}
+                  onTouchMove={draw}
+                  onTouchEnd={stopDrawing}
+                  className="w-full h-48 bg-white border-2 border-dashed border-gray-300 rounded-lg cursor-crosshair shadow-inner"
+                  style={{ touchAction: "none" }}
                 />
                 <button
                   type="button"
                   onClick={clearSignature}
-                  className="mt-2 px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  className="mt-3 px-4 py-2 text-sm bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
                   Hapus Tanda Tangan
                 </button>
@@ -877,8 +966,8 @@ export default function DetailBeritaAcara() {
             </div>
 
             {submitError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700">{submitError}</p>
+              <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                <p className="text-sm text-red-700 font-medium">{submitError}</p>
               </div>
             )}
 
@@ -886,14 +975,14 @@ export default function DetailBeritaAcara() {
               <button
                 onClick={() => setShowApproveModal(false)}
                 disabled={isSubmitting}
-                className="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg font-bold hover:bg-gray-400 disabled:opacity-50"
+                className="flex-1 bg-white border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
               >
                 Batal
               </button>
               <button
                 onClick={handleApprove}
                 disabled={isSubmitting}
-                className="flex-1 bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 text-white py-3 rounded-xl font-bold hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2 transition-transform shadow-md"
               >
                 {isSubmitting ? (
                   <>
@@ -911,15 +1000,25 @@ export default function DetailBeritaAcara() {
 
       {/* Reject Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">Tolak Berita Acara</h3>
-            <p className="text-gray-700 mb-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-200 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">Tolak Berita Acara</h3>
+                <p className="text-sm text-gray-600 mt-1">Berikan alasan penolakan</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6 leading-relaxed">
               Berikan alasan penolakan agar vendor dapat memperbaiki BA ini.
             </p>
 
-            <div className="mb-4">
-              <label className="block text-base font-semibold text-gray-900 mb-2">
+            <div className="mb-6">
+              <label className="block text-base font-semibold text-gray-900 mb-3">
                 Alasan Penolakan <span className="text-red-500">*</span>
               </label>
               <textarea
@@ -927,13 +1026,13 @@ export default function DetailBeritaAcara() {
                 onChange={(e) => setRejectionReason(e.target.value)}
                 rows={4}
                 placeholder="Contoh: Data barang tidak sesuai dengan kontrak..."
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 hover:border-gray-400 transition-all resize-none"
               />
             </div>
 
             {submitError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700">{submitError}</p>
+              <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                <p className="text-sm text-red-700 font-medium">{submitError}</p>
               </div>
             )}
 
@@ -945,14 +1044,14 @@ export default function DetailBeritaAcara() {
                   setSubmitError("");
                 }}
                 disabled={isSubmitting}
-                className="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg font-bold hover:bg-gray-400 disabled:opacity-50"
+                className="flex-1 bg-white border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
               >
                 Batal
               </button>
               <button
                 onClick={handleReject}
                 disabled={isSubmitting}
-                className="flex-1 bg-red-600 text-white py-3 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 bg-gradient-to-r from-red-600 to-pink-700 text-white py-3 rounded-xl font-bold hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2 transition-transform shadow-md"
               >
                 {isSubmitting ? (
                   <>

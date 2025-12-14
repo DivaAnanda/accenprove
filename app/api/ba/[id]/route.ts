@@ -345,11 +345,9 @@ export async function PATCH(
       };
 
       // If BA was REJECTED and being edited, reset to PENDING
+      // Keep rejection history for audit trail (don't clear rejectedAt, rejectedBy, rejectionReason)
       if (ba.status === "REJECTED") {
         updateData.status = "PENDING";
-        updateData.rejectionReason = null;
-        updateData.rejectedBy = null;
-        updateData.rejectedAt = null;
       }
 
       if (jenisBA) updateData.jenisBA = jenisBA;

@@ -177,3 +177,171 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+/**
+ * POST /api/users - Create new user (admin only)
+ * Body:
+ * - firstName: string (required)
+ * - lastName: string (required)
+ * - email: string (required, unique)
+ * - password: string (required, min 8 chars)
+ * - role: string (required: admin, direksi, dk, vendor)
+ * - phone: string (optional)
+ * - isActive: boolean (optional, default true)
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // Verify authentication
+    const cookieHeader = request.headers.get("cookie");
+    const token = extractTokenFromCookies(cookieHeader);
+    
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const payload = verifyToken(token);
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: "Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    // Check if user is admin
+    const currentUser = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, payload.userId))
+      .limit(1);
+
+    if (currentUser.length === 0 || currentUser[0].role !== "admin") {
+      return NextResponse.json(
+        { success: false, message: "Forbidden: Admin access required" },
+        { status: 403 }
+      );
+    }
+
+    // Parse request body
+    const body = await request.json();
+    const { firstName, lastName, email, password, role, phone, isActive } = body;
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !password || !role) {
+      return NextResponse.json(
+        { success: false, message: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid email format" },
+        { status: 400 }
+      );
+    }
+
+    // Validate password strength (min 8 chars)
+    if (password.length < 8) {
+      return NextResponse.json(
+        { success: false, message: "Password must be at least 8 characters" },
+        { status: 400 }
+      );
+    }
+
+    // Validate role
+    const validRoles = ["admin", "direksi", "dk", "vendor"];
+    if (!validRoles.includes(role)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid role" },
+        { status: 400 }
+      );
+    }
+
+    // Check if email already exists
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      return NextResponse.json(
+        { success: false, message: "Email already registered" },
+        { status: 409 }
+      );
+    }
+
+    // Hash password
+    const bcrypt = require("bcryptjs");
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user with default photo
+    const defaultPhoto = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(`${firstName} ${lastName}`);
+    
+    const newUser = await db
+      .insert(users)
+      .values({
+        firstName,
+        lastName,
+        email,
+        password: hashedPassword,
+        role,
+        phone: phone || null,
+        photo: defaultPhoto,
+        isActive: isActive !== undefined ? isActive : true,
+        isVerified: true, // Admin-created users are auto-verified
+      })
+      .returning({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        role: users.role,
+        phone: users.phone,
+        photo: users.photo,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+      });
+
+    // Log audit
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await logAudit({
+      userId: payload.userId,
+      userEmail: payload.email,
+      userRole: payload.role,
+      action: "admin.user.create",
+      category: "admin",
+      description: `${payload.email} created new user ${email} with role ${role}`,
+      targetType: "user",
+      targetId: newUser[0].id,
+      targetIdentifier: email,
+      ipAddress,
+      userAgent,
+      metadata: {
+        newUser: {
+          email,
+          role,
+          isActive: newUser[0].isActive,
+        },
+      },
+      status: "success",
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "User created successfully",
+      data: newUser[0],
+    }, { status: 201 });
+  } catch (error: any) {
+    console.error("POST /api/users error:", error);
+    return NextResponse.json(
+      { success: false, message: "Internal server error", error: error.message },
+      { status: 500 }
+    );
+  }
+}

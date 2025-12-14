@@ -5,6 +5,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
+import toast from "react-hot-toast";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,24 +16,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     // Check verification status from email link
     const verified = searchParams.get("verified");
     if (verified === "success") {
-      setMessage("✓ Email berhasil diverifikasi! Silakan login.");
+      toast.success("Email berhasil diverifikasi! Silakan login.");
     } else if (verified === "already") {
-      setMessage("Email sudah diverifikasi sebelumnya.");
+      toast("Email sudah diverifikasi sebelumnya.");
     }
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage("");
-    setErrorMsg("");
+
+    const loadingToast = toast.loading("Masuk ke akun...");
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -43,18 +43,18 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (data.success) {
-        setMessage(data.message);
+        toast.success("Login berhasil! Mengalihkan...", { id: loadingToast });
         // Update auth context
         login(data.data.user);
-        // Redirect to dashboard after 1 second
+        // Redirect to dashboard
         setTimeout(() => {
           router.push("/dashboard");
-        }, 1000);
+        }, 800);
       } else {
-        setErrorMsg(data.message);
+        toast.error(data.message, { id: loadingToast });
       }
     } catch (error) {
-      setErrorMsg("✗ Terjadi kesalahan. Silakan coba lagi.");
+      toast.error("Terjadi kesalahan. Silakan coba lagi.", { id: loadingToast });
     } finally {
       setLoading(false);
     }
@@ -62,13 +62,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col">
-      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
         <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-primary-600 mb-2">Accenprove</h1>
-          </Link>
           <h2 className="text-2xl font-semibold text-gray-900">Masuk ke Akun</h2>
           <p className="mt-2 text-gray-600">
             Belum punya akun?{" "}
@@ -80,20 +78,6 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100">
-          {/* Success Message */}
-          {message && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800 text-sm font-medium">{message}</p>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {errorMsg && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800 text-sm font-medium">{errorMsg}</p>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email */}
             <div>

@@ -32,7 +32,7 @@ export function exportToExcel(data: any[], filename: string = "berita-acara") {
   const columnWidths = [
     { wch: 20 }, // Nomor BA
     { wch: 10 }, // Jenis BA
-    { wch: 20 }, // Nomor Kontrak
+    { wch: 30 }, // Nomor Kontrak/Resi/Lainnya
     { wch: 25 }, // Nama Vendor
     { wch: 30 }, // Email Vendor
     { wch: 18 }, // Tanggal Pemeriksaan
@@ -40,8 +40,8 @@ export function exportToExcel(data: any[], filename: string = "berita-acara") {
     { wch: 25 }, // Nama PIC
     { wch: 25 }, // Jabatan PIC
     { wch: 40 }, // Deskripsi Barang
-    { wch: 15 }, // Jumlah Barang
-    { wch: 15 }, // Kondisi Barang
+    { wch: 20 }, // Jumlah Barang/Pekerjaan
+    { wch: 20 }, // Kondisi Barang/Pekerjaan
     { wch: 30 }, // Keterangan
     { wch: 12 }, // Status
     { wch: 30 }, // Alasan Penolakan
@@ -69,7 +69,7 @@ export function exportToCSV(data: any[], filename: string = "berita-acara") {
   const exportData = data.map((item) => ({
     "Nomor BA": item.ba.nomorBA,
     "Jenis BA": item.ba.jenisBA,
-    "Nomor Kontrak": item.ba.nomorKontrak,
+    "Nomor Kontrak/Resi/Lainnya": item.ba.nomorKontrak,
     "Nama Vendor": item.ba.namaVendor,
     "Email Vendor": item.vendor?.email || "-",
     "Tanggal Pemeriksaan": item.ba.tanggalPemeriksaan,
@@ -77,8 +77,8 @@ export function exportToCSV(data: any[], filename: string = "berita-acara") {
     "Nama PIC": item.ba.namaPIC,
     "Jabatan PIC": item.ba.jabatanPIC,
     "Deskripsi Barang": item.ba.deskripsiBarang,
-    "Jumlah Barang": item.ba.jumlahBarang,
-    "Kondisi Barang": item.ba.kondisiBarang,
+    "Jumlah Barang/Pekerjaan": item.ba.jumlahBarang,
+    "Kondisi Barang/Pekerjaan": item.ba.kondisiBarang,
     "Keterangan": item.ba.keterangan || "-",
     "Status": item.ba.status,
     "Alasan Penolakan": item.ba.rejectionReason || "-",

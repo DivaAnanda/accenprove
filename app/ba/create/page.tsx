@@ -23,6 +23,19 @@ export default function CreateBAPage() {
     reason: string;
     rejectedAt: Date;
   } | null>(null);
+  const [formData, setFormData] = useState({
+    jenisBA: "",
+    nomorKontrak: "",
+    namaVendor: "",
+    tanggalPemeriksaan: "",
+    lokasiPemeriksaan: "",
+    namaPIC: "",
+    jabatanPIC: "",
+    deskripsiBarang: "",
+    jumlahBarang: "",
+    kondisiBarang: "",
+    keterangan: "",
+  });
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Role check - redirect if not vendor
@@ -46,20 +59,6 @@ export default function CreateBAPage() {
   if (!user || user.role !== "vendor") {
     return null; // Middleware + useEffect will handle redirect
   }
-
-  const [formData, setFormData] = useState({
-    jenisBA: "",
-    nomorKontrak: "",
-    namaVendor: "",
-    tanggalPemeriksaan: "",
-    lokasiPemeriksaan: "",
-    namaPIC: "",
-    jabatanPIC: "",
-    deskripsiBarang: "",
-    jumlahBarang: "",
-    kondisiBarang: "",
-    keterangan: "",
-  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -134,24 +133,53 @@ export default function CreateBAPage() {
     }));
   };
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    let clientX: number, clientY: number;
+
+    if ('touches' in e) {
+      // Touch event
+      const touch = e.touches[0] || e.changedTouches[0];
+      clientX = touch.clientX;
+      clientY = touch.clientY;
+    } else {
+      // Mouse event
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     setIsDrawing(true);
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (ctx && canvas) {
-      const rect = canvas.getBoundingClientRect();
+      const { x, y } = getCoordinates(e);
       ctx.beginPath();
-      ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+      ctx.moveTo(x, y);
     }
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (ctx && canvas) {
-      const rect = canvas.getBoundingClientRect();
-      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+      const { x, y } = getCoordinates(e);
+      ctx.lineTo(x, y);
       ctx.stroke();
     }
   };
@@ -334,10 +362,10 @@ export default function CreateBAPage() {
               </select>
             </div>
 
-            {/* Nomor Kontrak */}
+            {/* Nomor Kontrak / Resi / Lainnya */}
             <div>
               <label className="block text-base font-semibold text-gray-900 mb-2">
-                Nomor Kontrak <span className="text-red-500">*</span>
+                Nomor Kontrak / Resi / Lainnya <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -446,10 +474,10 @@ export default function CreateBAPage() {
               />
             </div>
 
-            {/* Jumlah Barang */}
+            {/* Jumlah Barang / Pekerjaan */}
             <div>
               <label className="block text-base font-semibold text-gray-900 mb-2">
-                Jumlah Barang <span className="text-red-500">*</span>
+                Jumlah Barang / Pekerjaan <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -463,10 +491,10 @@ export default function CreateBAPage() {
               />
             </div>
 
-            {/* Kondisi Barang */}
+            {/* Kondisi Barang / Pekerjaan */}
             <div>
               <label className="block text-base font-semibold text-gray-900 mb-2">
-                Kondisi Barang <span className="text-red-500">*</span>
+                Kondisi Barang / Pekerjaan <span className="text-red-500">*</span>
               </label>
               <select
                 name="kondisiBarang"
@@ -520,6 +548,9 @@ export default function CreateBAPage() {
                   onMouseMove={draw}
                   onMouseUp={stopDrawing}
                   onMouseLeave={stopDrawing}
+                  onTouchStart={startDrawing}
+                  onTouchMove={draw}
+                  onTouchEnd={stopDrawing}
                   className="w-full h-48 bg-white border-2 border-dashed border-gray-300 rounded cursor-crosshair"
                   style={{ touchAction: "none" }}
                 />

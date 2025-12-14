@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import toast from "react-hot-toast";
 
 type ProfileData = {
   id: number;
@@ -52,10 +53,6 @@ export default function ProfilePage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Partial<FormData>>({});
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch profile data
@@ -80,11 +77,11 @@ export default function ProfilePage() {
           });
           setPhotoPreview(result.data.photo || "/default-avatar.png");
         } else {
-          setMessage({ type: "error", text: result.message });
+          toast.error(result.message);
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
-        setMessage({ type: "error", text: "Gagal memuat profil" });
+        toast.error("Gagal memuat profil");
       } finally {
         setLoading(false);
       }
@@ -111,20 +108,14 @@ export default function ProfilePage() {
     // Validate file type
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
     if (!allowedTypes.includes(file.type)) {
-      setMessage({
-        type: "error",
-        text: "Hanya file JPG dan PNG yang diperbolehkan",
-      });
+      toast.error("Hanya file JPG dan PNG yang diperbolehkan");
       return;
     }
 
     // Validate file size (max 2MB)
     const maxSize = 2 * 1024 * 1024;
     if (file.size > maxSize) {
-      setMessage({
-        type: "error",
-        text: "Ukuran file maksimal 2MB",
-      });
+      toast.error("Ukuran file maksimal 2MB");
       return;
     }
 
@@ -140,7 +131,7 @@ export default function ProfilePage() {
     if (!selectedFile) return;
 
     setUploading(true);
-    setMessage(null);
+    const loadingToast = toast.loading("Mengunggah foto...");
 
     try {
       const formData = new FormData();
@@ -156,17 +147,17 @@ export default function ProfilePage() {
       if (result.success) {
         setProfile((prev) => (prev ? { ...prev, photo: result.data.photo } : null));
         setSelectedFile(null);
-        setMessage({ type: "success", text: "Foto berhasil diperbarui" });
+        toast.success("Foto berhasil diperbarui", { id: loadingToast });
         // Refresh user data in AuthContext to update Navbar
         await refreshUser();
       } else {
-        setMessage({ type: "error", text: result.message });
+        toast.error(result.message, { id: loadingToast });
         // Reset preview to current photo
         setPhotoPreview(profile?.photo || "/default-avatar.png");
       }
     } catch (error) {
       console.error("Error uploading photo:", error);
-      setMessage({ type: "error", text: "Gagal mengunggah foto" });
+      toast.error("Gagal mengunggah foto", { id: loadingToast });
       setPhotoPreview(profile?.photo || "/default-avatar.png");
     } finally {
       setUploading(false);
@@ -177,7 +168,7 @@ export default function ProfilePage() {
     if (!confirm("Hapus foto profil dan gunakan avatar default?")) return;
 
     setUploading(true);
-    setMessage(null);
+    const loadingToast = toast.loading("Menghapus foto...");
 
     try {
       const response = await fetch("/api/users/me/photo", {
@@ -192,13 +183,13 @@ export default function ProfilePage() {
         );
         setPhotoPreview("/default-avatar.png");
         setSelectedFile(null);
-        setMessage({ type: "success", text: "Foto berhasil dihapus" });
+        toast.success("Foto berhasil dihapus", { id: loadingToast });
       } else {
-        setMessage({ type: "error", text: result.message });
+        toast.error(result.message, { id: loadingToast });
       }
     } catch (error) {
       console.error("Error deleting photo:", error);
-      setMessage({ type: "error", text: "Gagal menghapus foto" });
+      toast.error("Gagal menghapus foto", { id: loadingToast });
     } finally {
       setUploading(false);
     }
@@ -228,12 +219,12 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!validateForm()) {
-      setMessage({ type: "error", text: "Mohon perbaiki kesalahan pada form" });
+      toast.error("Mohon perbaiki kesalahan pada form");
       return;
     }
 
     setSaving(true);
-    setMessage(null);
+    const loadingToast = toast.loading("Menyimpan profil...");
 
     try {
       const response = await fetch("/api/users/me", {
@@ -246,14 +237,14 @@ export default function ProfilePage() {
 
       if (result.success) {
         setProfile(result.data);
-        setMessage({ type: "success", text: "Profil berhasil diperbarui" });
+        toast.success("Profil berhasil diperbarui", { id: loadingToast });
         setActiveTab("view");
       } else {
-        setMessage({ type: "error", text: result.message });
+        toast.error(result.message, { id: loadingToast });
       }
     } catch (error) {
       console.error("Error updating profile:", error);
-      setMessage({ type: "error", text: "Gagal memperbarui profil" });
+      toast.error("Gagal memperbarui profil", { id: loadingToast });
     } finally {
       setSaving(false);
     }
@@ -271,7 +262,6 @@ export default function ProfilePage() {
       setSelectedFile(null);
     }
     setErrors({});
-    setMessage(null);
     setActiveTab("view");
   };
 
@@ -307,19 +297,6 @@ export default function ProfilePage() {
             Kelola informasi profil Anda
           </p>
         </div>
-
-        {/* Message Toast */}
-        {message && (
-          <div
-            className={`mb-6 p-4 rounded-lg ${
-              message.type === "success"
-                ? "bg-green-50 text-green-800 border border-green-200"
-                : "bg-red-50 text-red-800 border border-red-200"
-            }`}
-          >
-            <p className="font-medium">{message.text}</p>
-          </div>
-        )}
 
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">

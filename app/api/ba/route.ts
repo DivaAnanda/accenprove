@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     // Get query params
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
+    const jenisBAFilter = searchParams.get("jenisBA");
     const vendorIdFilter = searchParams.get("vendorId");
     const searchQuery = searchParams.get("search");
     const startDate = searchParams.get("startDate");
@@ -64,6 +65,11 @@ export async function GET(request: NextRequest) {
     // Status filter
     if (statusFilter) {
       conditions.push(eq(beritaAcara.status, statusFilter as "PENDING" | "APPROVED" | "REJECTED"));
+    }
+
+    // Jenis BA filter
+    if (jenisBAFilter) {
+      conditions.push(eq(beritaAcara.jenisBA, jenisBAFilter as "BAPB" | "BAPP"));
     }
 
     // Vendor filter (for admin/direksi/dk)

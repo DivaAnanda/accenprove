@@ -3,16 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import toast from "react-hot-toast";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { EmptyState } from "@/components/EmptyState";
 import BAListFilters, { FilterValues } from "@/components/ba/BAListFilters";
 import BAListTable from "@/components/ba/BAListTable";
 import BAPagination from "@/components/ba/BAPagination";
 import { buildQueryString } from "@/lib/utils";
 import { exportToExcel, exportToCSV, fetchAllBAForExport } from "@/lib/export";
-import { FileText } from "lucide-react";
 
 interface BAItem {
   ba: {
@@ -63,13 +60,12 @@ export default function BAListPage() {
   // Initialize filters from URL params
   const [filters, setFilters] = useState<FilterValues>(() => ({
     status: searchParams.get("status") || "",
-    jenisBA: searchParams.get("jenisBA") || "",
+    vendorId: searchParams.get("vendorId") || "",
     search: searchParams.get("search") || "",
     startDate: searchParams.get("startDate") || "",
     endDate: searchParams.get("endDate") || "",
     sortBy: searchParams.get("sortBy") || "createdAt",
     sortOrder: searchParams.get("sortOrder") || "desc",
-    limit: searchParams.get("limit") || "10",
   }));
 
   // Fetch BA list
@@ -81,7 +77,7 @@ export default function BAListPage() {
       const queryParams = {
         ...filters,
         page: page.toString(),
-        limit: filters.limit === "all" ? "999999" : filters.limit,
+        limit: "10",
       };
 
       const queryString = buildQueryString(queryParams);
@@ -163,13 +159,12 @@ export default function BAListPage() {
     try {
       setExporting(true);
       setExportMenuOpen(false);
-      const loadingToast = toast.loading(`Mengekspor data ke ${format.toUpperCase()}...`);
       
       // Fetch all BA data with current filters
       const allData = await fetchAllBAForExport(filters);
       
       if (allData.length === 0) {
-        toast.error("Tidak ada data untuk di-export", { id: loadingToast });
+        alert("Tidak ada data untuk di-export");
         return;
       }
       
@@ -179,11 +174,9 @@ export default function BAListPage() {
       } else {
         exportToCSV(allData, "daftar-berita-acara");
       }
-      
-      toast.success(`Berhasil mengekspor ${allData.length} data ke ${format.toUpperCase()}`, { id: loadingToast });
     } catch (error) {
       console.error("Export error:", error);
-      toast.error("Gagal export data. Silakan coba lagi.");
+      alert("Gagal export data. Silakan coba lagi.");
     } finally {
       setExporting(false);
     }
@@ -237,76 +230,72 @@ export default function BAListPage() {
     <>
       <Navbar />
       
-      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white py-8">
-        <div className="max-w-7xl mx-auto px-4">
-          {/* Header - Simple Style */}
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Daftar Berita Acara</h1>
-              <p className="text-gray-600 mt-1">
+              <p className="mt-2 text-gray-600">
                 Kelola dan pantau semua Berita Acara
               </p>
             </div>
-          
+            
             {/* Export Button */}
             <div className="relative">
-                <button
-                  onClick={() => setExportMenuOpen(!exportMenuOpen)}
-                  disabled={exporting || loading || baList.length === 0}
-                  className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white text-base font-semibold rounded-xl hover:shadow-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  {exporting ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      Export
-                      <svg className="ml-2 -mr-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              
-                {/* Export Dropdown Menu */}
-                {exportMenuOpen && !exporting && (
-                  <div className="absolute right-0 mt-2 w-64 rounded-xl shadow-2xl bg-white border border-gray-200 z-10 overflow-hidden">
-                    <div className="py-2" role="menu">
-                      <button
-                        onClick={() => handleExport("excel")}
-                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-primary-50 flex items-center transition-colors group"
-                        role="menuitem"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <div className="flex-1">
-                          <div className="font-semibold text-gray-900 group-hover:text-primary-600">Export to Excel</div>
-                          <div className="text-xs text-gray-500">{pagination.totalItems} items • .xlsx format</div>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => handleExport("csv")}
-                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-primary-50 flex items-center transition-colors group"
-                        role="menuitem"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        <div className="flex-1">
-                          <div className="font-semibold text-gray-900 group-hover:text-primary-600">Export to CSV</div>
-                          <div className="text-xs text-gray-500">{pagination.totalItems} items • .csv format</div>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
+              <button
+                onClick={() => setExportMenuOpen(!exportMenuOpen)}
+                disabled={exporting || loading || baList.length === 0}
+                className="inline-flex items-center justify-center px-6 py-3 border border-gray-300 text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exporting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    📥 Export
+                    <svg className="ml-2 -mr-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </>
                 )}
-              </div>
+              </button>
+              
+              {/* Export Dropdown Menu */}
+              {exportMenuOpen && !exporting && (
+                <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                  <div className="py-1" role="menu">
+                    <button
+                      onClick={() => handleExport("excel")}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                      role="menuitem"
+                    >
+                      <span className="mr-3">📊</span>
+                      <div>
+                        <div className="font-medium">Export to Excel</div>
+                        <div className="text-xs text-gray-500">{pagination.totalItems} items</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleExport("csv")}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                      role="menuitem"
+                    >
+                      <span className="mr-3">📄</span>
+                      <div>
+                        <div className="font-medium">Export to CSV</div>
+                        <div className="text-xs text-gray-500">{pagination.totalItems} items</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Error Message */}
@@ -319,48 +308,28 @@ export default function BAListPage() {
           {/* Filters */}
           <BAListFilters
             onFilterChange={handleFilterChange}
+            showVendorFilter={["admin", "direksi", "dk"].includes(user.role)}
             role={user.role}
           />
 
           {/* Stats Summary */}
           {!loading && (
-            <div className="mb-6 bg-white/80 backdrop-blur-sm rounded-xl shadow-md border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
-                    <span className="text-2xl font-bold text-white">{pagination.totalItems}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Total Berita Acara</p>
-                    <p className="text-lg font-bold text-gray-900">{pagination.totalItems} Documents</p>
-                  </div>
-                </div>
+            <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>
+                  Total: <strong className="text-gray-900">{pagination.totalItems}</strong> BA
+                </span>
                 {filters.status && (
-                  <div className="px-4 py-2 bg-gradient-to-r from-primary-50 to-blue-50 border border-primary-200 rounded-lg">
-                    <span className="text-sm font-semibold text-primary-700">
-                      Filtered: {filters.status}
-                    </span>
-                  </div>
+                  <span className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-xs font-medium">
+                    Filter: {filters.status}
+                  </span>
                 )}
               </div>
             </div>
           )}
 
           {/* BA List Table */}
-          {!loading && baList.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <EmptyState
-                icon={FileText}
-                title="Belum Ada Berita Acara"
-                description="Saat ini belum ada berita acara yang tersedia. Mulai dengan membuat berita acara pertama Anda."
-                actionLabel="Buat Berita Acara"
-                actionHref="/ba/create"
-                showAction={false}
-              />
-            </div>
-          ) : (
-            <BAListTable data={baList} loading={loading} />
-          )}
+          <BAListTable data={baList} loading={loading} />
 
           {/* Pagination */}
           {!loading && baList.length > 0 && (
